@@ -1,0 +1,200 @@
+---
+title: "Holsenbeck_S_1"
+author: "Stephen Synchronicity"
+date: '`r format(Sys.time(), "%Y-%m-%d")`'
+always_allow_html: yes
+header-includes:
+   - \usepackage{dcolumn}
+output:
+  pdf_document: 
+  toc: no
+  latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+#Submission Receipt: e6b96dcf-07f8-417e-8e5d-4fa06e508aa5
+knitr::opts_chunk$set(echo = TRUE, message=FALSE,warning=FALSE,cache=TRUE, fig.align='center', fig.height=3.5, fig.width=5, tidy=TRUE, tidy.opts=list(width.cutoff=80))
+rmarkdown::html_dependency_jquery()
+rmarkdown::html_dependency_bootstrap("spacelab")
+rmarkdown::html_dependency_jqueryui()
+set.seed(1)
+require("tidyverse")
+require("dplyr")
+require("htmltools")
+require("caret")
+
+```
+## 1
+<p class="q">(5 pts) Locate the data set and load the data into R.
+</p>
+<div class="a">
+```{r 'Load Data'}
+dfCData <- read.csv(file="~/Northeastern/Git/da5030/Asgmt1/customertxndata.csv")
+```
+</div>
+## 2
+<p class="q">(10 pts) Calculate the following summative statistics: total number of cases, mean number of visits, median revenue, maximum and minimum number of transactions, most commonly used operating system. Exclude any cases where there is a missing value.
+</p>
+<div class="a">
+```{r '1'}
+dfCData <- dfCData %>% drop_na()
+# Total Number of cases
+nrow(dfCData)
+# Mean Number of visits
+mean(dfCData$Visits)
+# Median revenue
+median(dfCData$Revenue)
+c(min(dfCData$Transactions),max(dfCData$Transactions))
+# From https://stackoverflow.com/questions/2547402/is-there-a-built-in-function-for-finding-the-mode
+Mode <- function(x, na.rm = FALSE) {
+if(na.rm){
+x = x[!is.na(x)]
+}
+
+ux <- unique(x)
+return(ux[which.max(tabulate(match(x, ux)))])
+}
+Mode(dfCData$OS)
+
+```
+</div>
+## 3
+<p class="q">(15 pts) Create a scatterplot of number of visits (x-axis) versus revenue (y-axis). Comment on the correlation between the two variables.
+</p>
+<div class="a">
+```{r '2'}
+ggplot(data = dfCData,mapping=aes(x=Visits,y=Revenue))+
+geom_count(aes(color = ..prop..))+
+geom_smooth(method="lm")+
+  labs(title = "Visit v Revenue",
+  subtitle = "Size Weighted by Count, Colored by Proportion",
+  caption = "",
+  x = "Visits",y = "Revenue") +
+  theme(plot.title = element_text(hjust = .5),plot.subtitle = element_text(hjust = .5))+
+  scale_color_gradientn(colours = rainbow(4))
+```
+
+It is no surprise that the linear regression line indicates a positive slope whereby the amount spent increases with the number of times a person visits a store. Once a person has visited a store more than 1-3 times, it could be assumed they've found some product(s) of interest that they have decided to return at regular intervals for, so their overall revenue will gradually increase as they continue to visit.
+If we consider customers by type according to their number of visits, it's easy to recognize the "browsers" visiting 1-3 times, who don't find anything they like in those visits, and therefore generate 0 revenue. Though we see there's about 7% of customers whom visit the store between 5-7 times, and also don't buy anything. I am unable to find an explanation for this, for anyone whom has visited a store 1-3 times and did not find anything they like is highly unlikely to return. This anomaly leads me to beleive that the dataset is actually a generated one, in which revenue is in some way based on the value for visits (though I could be wrong). 
+The customers visiting the store between 8-15 times, "casual" customers, generate varying amounts of revenue which appears to max out at $500. 
+"Regular" customers, whom visit the store between 16-20 times generate anywhere between \$200 & \$2000 in revenue, with a couple of customers with deep wallets visiting exactly between 18&19 times. 
+"Loyal" customers, visiting between 20-25 times spend liberally with many generating in excess of \$400 in revenue, with plenty on the spectrum between \$400 and \$2000.
+</div>
+## 4
+<p class="q">(10 pts) Which columns have missing data? How did you recognize them? How would you impute missing values?
+</p>
+<div class="a">
+```{r '3'}
+dfOData <- read.csv(file="~/Northeastern/Git/da5030/Asgmt1/customertxndata.csv")
+(msngData <- apply(dfOData,2,function(x)sum(is.na(x))))
+```
+*Recognizing columns with missing data*
+
+Columns with missing data are filled with NA by the read.csv function with the fill=T argument, NA values indicate missing data. Missing values for transactions can be set to the mean of transactions where revenue exists, as this will maintain the current distribution without skewing it, though it will make it adhere more closely to the mean (less variance) for computed statistics. Using the code above, columns with missing values may be easily identified. 
+
+*Methods for Imputing Transaction*
+
+Missing transaction data can be imputed using the central tendencies of the dataset split by the Operating System factor. 
+
+```{r '3 Txn Data'}
+aMean <- mean(dfCData$Transactions[dfCData$OS=="Android"])
+iMean <- mean(dfCData$Transactions[dfCData$OS=="iOS"])
+```
+
+
+*Methods for Imputing Gender*
+
+<p style="font-size:1.1em"></p>
+Missing values for gender can be attributed to a third category U for unknown. If we selected a gender at random, it would skew the data representative of the actual gender, which could lead to misinformed decisions about target audience in the future. Gender can also be selected based on a sampling algorithm that preserves the existing trends in the data as demonstrated below
+
+```{r '3 Gen',eval=F}
+(Genratios <- table(dfOData$Gender))
+GenTotal <- sum(Genratios[c(1,2)])
+GenM <- Genratios["Male"]/GenTotal
+GenF <- Genratios["Female"]/GenTotal
+table(sample(c("M","F"),size=msngData["Gender"],replace=T,c(GenM,GenF)))
+```
+
+Alternatively, using the Decision Tree method as outlined in the <a href="https://github.com/CleverTap/Analytics_ds_articles/tree/master/Binning_Numerical_DecisionTree" target="_blank">reading</a> we can attempt to impute the gender according to the variables without missing data. 
+
+```{r '3 Decision Tree'}
+require(rpart)
+require(rattle)
+require(RColorBrewer)
+Gentree <- rpart(Gender~Revenue+Visits,data=dfCData,control=rpart.control(xval=30))
+fancyRpartPlot(Gentree,palettes = c("Blues"),type=2)
+```
+
+Revisiting the question of whether this dataset is real or generated, there are cases where visits and revenue are recorded, but transactions are missing, which indicates that the data is generated. Any data generated by an actual point-of-sale system would not have missing values for transactions where revenue was recorded. It seems like the dataset comes from the thread on datasciencecentral, and is likely reproducible data for the purpose of proposing a question. 
+
+
+</div>
+## 5
+<p class="q">(15 pts) Impute missing transaction and gender values.
+</p>
+<div class="a">
+```{r '4 Impute Transactions'}
+dfOData$Transactions[is.na(dfOData$Transactions)&dfOData$OS=="Android"] <- aMean
+dfOData$Transactions[is.na(dfOData$Transactions)&dfOData$OS=="iOS"] <- iMean
+mean(dfOData$Transactions,na.rm=T)
+```
+```{r '4 - Impute Gender',eval=F}
+# Assigning a neutral Category
+require(forcats)
+dfOData$Gender <- fct_explicit_na(dfOData$Gender,na_level = "U")
+dfOData$Gender <- fct_recode(dfOData$Gender,"Ma"="Male",
+                       "Fe"="Female")
+```
+```{r '4 - Assign value preserving ratios',eval=F}
+# Assign value preserving ratios
+dfOData$Gender[is.na(dfOData$Gender)] <- sample(c("Ma","Fe"),size=length(dfOData$Gender[is.na(dfOData$Gender)]),replace=T,c(.8,.2))
+```
+```{r '4 - Assign values using Decision tree'}
+
+genVector <- predict(Gentree,newdata=dfOData[!complete.cases(dfOData),],type="vector")
+table(genVector)
+genVector[genVector==1] <- "Fe"
+genVector[genVector==2] <- "Ma"
+nadf <- dfOData[!complete.cases(dfOData),]
+nadf$Gender <- genVector
+dfOData <- as.data.frame(rbind(dfOData[complete.cases(dfOData),],nadf))
+dfOData$Gender <- fct_recode(dfOData$Gender,"Ma"="Male",
+                       "Fe"="Female")
+```
+
+</div>
+## 6
+<p class="q">(20 pts) Split the data set into two equally sized data sets where one can be used for training a model and the other for validation. Take every odd numbered case and add them to the training data set and every even numbered case and add them to the validation data set, i.e., row 1, 3, 5, 7, etc. are training data while rows 2, 4, 6, etc. are validation data.
+</p>
+<div class="a">
+```{r '5'}
+row.names(dfOData) <- seq(1,22800,by=1)
+dfValid <- dfOData[as.numeric(row.names(dfOData))%%2==0,]
+dfTrain <- dfOData[as.numeric(row.names(dfOData))%%2==1,]
+```
+</div>
+## 7
+<p class="q">(10 pts) Calculate the mean revenue for the training and the validation data sets and compare them. Comment on the difference.
+</p>
+<div class="a">
+```{r '6'}
+(diffMean <- mean(dfTrain$Revenue)-mean(dfValid$Revenue))
+(pdiff <- diffMean/mean(dfTrain$Revenue))
+```
+The difference in means between the datasets represents ~.06% of the value of the means themselves. This indicates that the center of the revenue of the two data sets is very close to identical and thus training a machine learning algorithm on the the training set will likely yield a model that will perform well with the validation set.
+</div>
+## 8
+<p class="q">(15 pts) For many data mining and machine learning tasks, there are packages in R. Find at least one package that has functions for creating training and validation data subsets and show how to use them.</p>
+<div class="a">
+  The Repeated k-folds cross-validation is a method for creating training and validation subsets. K-folds splits the data into k roughly equivalent segments and uses all but 1 as the training set, and tests on the remaining 1 segment. It then selects the next segment as the test set, and uses all others as the training set and so on until it has tested with all available data. Repeated k-folds allows for the specification of a number of repetitions of this k-folds testing process to further hone the model. 
+```{r '7',eval=T}
+#Note: This code works when running within the document, but causes a cryptic error (Error:Stopping) when knitting, so the chunk evaluation has been set to False.
+foldsData <- caret::createMultiFolds(dfOData$Revenue,k=10,times=10)
+trControl <- caret::trainControl(method="repeatedcv", number=10, repeats=3,index=foldsData,classProbs = TRUE)
+system.time(model <- caret::train(Revenue~., data=dfOData, trControl=trControl,tuneLength=3, method="leapForward",na.action = na.omit))
+print(model)
+model %>% summary()
+mo
+```
+In the code above 10 folds are created, 10 times for a total of 100 training set striations using Revenue as the dependent variable. trainControl, specifying the number of cross-validation attempts, and the number of repetitions for the cross-validation process using the folded set created with createMultiFolds. If I understand correctly, the data is seperated into 10 folds, 10 times, which will be trained 10 times for 3 repetitions. In other words, the model will be trained and tested on about 900 different cross-sections of the data. The train function then specifies to train a glmnet model which uses lasso and/or ridge regression to select variables that are the best predictors of the response variable. tuneLength, if I understand it correctly will try 3 variable input arguments for the model (I guess this would be 3 different lambda values in the case of glmnet, though I'm unsure how to determine this). Training the model takes all of 18 seconds to complete (<em>Note: </em>I tested this on a parallel SOCK type cluster and it actually slowed down the computation). In printing the results we see that the model has ~77% $R^2$. Not bad.
+</div>

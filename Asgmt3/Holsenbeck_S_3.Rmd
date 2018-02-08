@@ -1,0 +1,228 @@
+---
+title: "Holsenbeck_S_3"
+author: "Stephen Synchronicity"
+date: '`r format(Sys.time(), "%Y-%m-%d")`'
+always_allow_html: yes
+header-includes:
+   - \usepackage{dcolumn}
+output:
+  pdf_document: 
+    toc: no
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE, cache=TRUE, fig.align='center', fig.height=3.5, fig.width=5, tidy=TRUE, tidy.opts=list(width.cutoff=80))
+rmarkdown::html_dependency_jquery()
+rmarkdown::html_dependency_bootstrap("spacelab")
+rmarkdown::html_dependency_jqueryui()
+set.seed(1)
+require("tidyverse")
+require("dplyr")
+require("htmltools")
+require("rvest")
+require("kknn") #Weighted NN
+require("FNN")#Fast NN
+require(caret) #Correlation and regression Training package for R
+
+```
+```{r 'Assignment', eval=F}
+Q <- read_html("https://da5030.weebly.com/assignment-3.html") %>% html_nodes(xpath="//div[contains(@class,'paragraph')]/ol/li")
+Q[1] <- NULL
+for (i in seq_along(Q)) {
+  Q[i] <- Q[i]  %>% gsub("<li>", paste("## ", i, "\n<div class='q'>", sep=""), ., perl=T) %>% gsub("</li>", paste("\n</div>\n<p class='a'>\n```{r '", i, "'}\n```\n</p>", sep=""), ., perl=T) %>%  str_split("\n")
+}
+sapply(Q, FUN="cat", sep='\n', simplify=T)
+```
+```{r 'Functions from Class', eval=F}
+#Mode
+Mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+#Euclidean Distance
+dist <- function(p, q) {
+  d <- 0
+  for (i in 1:length(p)) {
+    d <- d+(p[i]-q[i])^2
+  }
+  dist <- sqrt(d)
+}
+#Neighbors
+neighbors <- function(train, u) {
+  m <- nrow(train)
+  ds <- as.numeric(u[c(2, 3)])
+for (i in 1:m) {
+  p <- train[i.c(2, 3)]
+ds[i] <- dist(p, q)
+}
+  neighbors <- ds
+}
+#Find smallest k values in a vector
+k.closest <- function(neighbors, k) {
+  ordered.neighbors <- order(neighbors)
+  k.closest <- ordered.neighbors[1:k]
+}
+#KNN
+knn <- function(train, u, k) {
+  nb <- neighbors(train, u)
+  f <- k.closest(nb, k)
+  knn <- Mode(train$type[f])
+}
+```
+
+
+## 1
+<div class='q'>Download the <a href="https://da5030.weebly.com/uploads/8/6/5/9/8659576/prostate_cancer.csv">data set for the tutorial</a>.
+</div>
+<p class='a'>
+```{r '1'}
+# ------------------- Wed Jan 31 20:35:37 2018 --------------------#
+#Import csv, strings stay as strings and not converted to factors
+
+dfPC <- read.csv("https://da5030.weebly.com/uploads/8/6/5/9/8659576/prostate_cancer.csv", stringsAsFactors = F)
+#View the structure
+str(dfPC)
+```
+</p>
+
+## 2
+<div class='q'>Follow this <a href="https://www.analyticsvidhya.com/blog/2015/08/learning-concept-knn-algorithms-programming/" target="_blank">tutorial on applying kNN to prostate cancer detection</a> and implement all of the steps in an R Notebook. Make sure to explain each step and what it does. (<em>Note</em>: The data set provided as part of this assignment has been slightly modified from the one used in the tutorial, so small deviations in the result can be expected.)
+</div>
+<p class='a'>
+```{r '2'}
+# ------------------- Wed Jan 31 20:38:00 2018 --------------------#
+#Remove ID as the rownames preserve this info
+dfPC <- dfPC[, -1]
+# ------------------- Wed Jan 31 20:39:03 2018 --------------------#
+#Ensure it worked
+head(dfPC)
+# ------------------- Wed Jan 31 20:39:42 2018 --------------------#
+#View the sums of the diagnosis result variable
+table(dfPC$diagnosis_result)
+# ------------------- Wed Jan 31 20:40:50 2018 --------------------#
+#Make diagnosis result into a factor
+dfPC$diagnosis <- factor(dfPC$diagnosis_result, levels = c("B", "M"), labels = c("Benign", "Malignant"))
+class(dfPC$diagnosis)
+# ------------------- Wed Jan 31 20:42:18 2018 --------------------#
+#Give diagnosis results in percentage form
+round(prop.table(table(dfPC$diagnosis)) * 100, digits = 1)
+# ------------------- Wed Jan 31 21:07:41 2018 --------------------#
+#Normalize function: Subtracts the minimum value for the range of the var from the value then divided by the range thus placing all values on a percent scale from 0-1. Known as min-max normalization. Using scale is also an option here. 
+normalize <- function(x) {
+return ((x - min(x)) / (max(x) - min(x))) }
+#This function is very similar to percent_rank. I beleive they can be used interchangeably. We will test this claim at the end of the tutorial.
+mean(normalize(dfPC$radius) - percent_rank(dfPC$radius))
+print(percent_rank)
+prc_n <- as.data.frame(lapply(dfPC[2:9], normalize))
+# ------------------- Wed Jan 31 21:19:59 2018 --------------------#
+#Take a look at summary data
+summary(prc_n)
+# ------------------- Wed Jan 31 21:21:08 2018 --------------------#
+#Create training and test data sets
+prc_train <- prc_n[1:65, ]
+prc_test <- prc_n[66:100, ]
+# ------------------- Wed Jan 31 21:35:55 2018 --------------------#
+# Creates train and test dfs of the results to train with and measure the accuracy of the algorithm
+prc_train_labels <- dfPC[1:65, 1]
+prc_test_labels <- dfPC[66:100, 1]
+# ------------------- Wed Jan 31 21:37:50 2018 --------------------#
+#Load library: class
+library(class)
+# ------------------- Wed Jan 31 21:39:10 2018 --------------------#
+#Run kNN
+prc_test_pred <- knn(train = prc_train, test = prc_test, cl = prc_train_labels, k=10)
+# ------------------- Thu Feb 01 14:31:08 2018 --------------------#
+#Load gmodels for testing model accuracy. Use the actual labels, and compare to the predicted labels from knn. From the tutorial, it looks like this will create a confusion matrix. We turned off the chisquared values in the output, which apparently saves about a half a second of computational time. This could potentially be much larger depending on the size of the dataset with unknown class.
+library(gmodels)
+system.time(ctknn <- CrossTable(x=prc_test_labels, y=prc_test_pred, prop.chisq = T))
+system.time(ctknn <- CrossTable(x=prc_test_labels, y=prc_test_pred, prop.chisq = F))
+ctknn
+# ------------------- Thu Feb 01 14:39:22 2018 --------------------#
+#It looks like kNN only had ~63% accuracy with this run. 
+(ctknn$t[1, 1] + ctknn$t[2, 2]) / sum(ctknn$t)
+# ------------------- Thu Feb 01 14:44:39 2018 --------------------#
+#Caret provides a confusion matrix as well that includes the accuracy rate as a named value
+library(caret) #Correlation and regression Training package for R
+confusionMatrix(prc_test_labels, prc_test_pred, positive="M")
+# ------------------- Thu Feb 01 14:54:18 2018 --------------------#
+#Interestingly enough, using percent_rank led to a ~71% accuracy. That's a significant improvement over min-max normalization. Lastly I'd like to try scale.
+# ------------------- Thu Feb 01 14:56:10 2018 --------------------#
+#Scale leads to a ~69% accuracy rate. Thus from this series of tests we can rank the normalization methods in the following order: 1. percent__rank, 2. scale,3. min-max normalization. I'd like to see if this trend holds up with other data sets.
+
+```
+</p>
+
+## 3
+<div class='q'>Once you've complete the tutorial, try another <em>kNN </em>implementation from another package, such as the <em style="color:rgb(85, 85, 85)"><strong>caret</strong></em> package. Compare the accuracy of the two implementations.
+</div>
+<p class='a'>
+This implementation is going to be derived from the tutorial on <a href="http://dataaspirant.com/2017/01/09/knn-implementation-r-using-caret-package/">dataaspirant.com</a> that uses repeated cross-validation from caret to train knn. The dataset is from a survey done by a friend of mine for their graduate thesis work entitled "Food Choice, Sustainability, Human Health, and Morality." This study looks at dietary eating habits, individual's values and identities, and uses 1-5 Likert scales with 5 being strongly agree and 1 being strongly disagree for a variety of questions related to values and dietary preferences. Question 1 is a consent yes/no and will be omitted. Question 2 is the classification of interest, which is dietary preference. Question 3 is a level of interest  Questions 30 through 56 are all likert items related to values, and questions 57-60 are likert items related to degree of identification which a specific nominal category. The final questions all relate to demographics and have been dummy coded with numeric values.
+```{r '3'}
+# ------------------- Thu Feb 01 15:22:42 2018 --------------------#
+#Import the already cleaned dataset
+df <- read.csv("~/Veginvesting/Evan Project/EPData.csv", stringsAsFactors = F)
+```
+```{r 'Impute NA'}
+library(Amelia)
+# ------------------- Fri Feb 02 09:45:30 2018 --------------------#
+#Use Amelia to impute values given bounds
+adf <- amelia(df[, -c(1:28)], m=2, noms=c(1), bounds=matrix(ncol=3, data=c(seq(1, 28), rep(1, 28), rep(5, 28))))
+df2 <- adf[["imputations"]][["imp1"]]
+df2 <- as.data.frame(cbind(Diet=df[, 1], df2))
+#Add target variable
+df2$Diet <- factor(df2$Diet, levels=c("Omnivore", "Flexitarian", "Pescetarian", "Vegetarian", "Vegan"), ordered = T)
+#Make target variable factor
+class(df2)
+class(df2$Diet)
+# Ensure it worked
+# ------------------- Fri Feb 02 09:56:37 2018 --------------------#
+#Train the model using caret
+#Create folds
+folds <- createDataPartition(df2$Diet, p=.66,list=T)
+#Create control partitions using the indexed partitions
+trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3, index=folds)
+#Train the model
+knn_fit <- train(Diet ~ ., data = df2, method = "knn", 
+ trControl=trctrl, tuneLength = 10)
+#Check Results
+knn_fit
+#Filter current vegetarians
+# Test model predictions for vegetarians
+test <- df2[-folds$Resample1, ]
+pred <- predict(knn_fit, newdata = test)
+# ------------------- Fri Feb 02 10:30:10 2018 --------------------#
+#
+confusionMatrix(pred, test$Diet, positive="Vegan")
+# ------------------- Fri Feb 02 10:48:38 2018 --------------------#
+#The resulTS show the model has a 58% accuracy. What is of interest, since this is a factor, though not necessarily ordered, can be viewed as a progression, is the folks whom are below the diagonal of correct guesses by the model. These are individuals whom have answered the survey questions similar enough to individuals further along the factor progression than they currently stand. One omnivore was predicted vegetarian, and one flexitarian, one pescetarian, and one vegetarian were all predicted as vegan. This could potentially be useful data from an outreach perspective.
+```
+</p>
+
+## 4
+<div class='q'>Try the <em>confusionMatrix </em>function from the <em><strong>caret </strong></em>package to determine the accuracy of both algorithms.
+</div>
+<p class='a'>
+To compare the two confusion matrices, we can use the method above with the data from #2.
+```{r '4'}
+dfPC <- dfPC %>% select(-diagnosis)
+dfPC$diagnosis_result <- factor(dfPC$diagnosis_result, levels=c("B", "M"))
+folds <- createDataPartition(dfPC$diagnosis_result, p=.8, list=T)
+
+trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3, index=folds)
+
+knn_fit <- train(diagnosis_result ~ ., data = dfPC, method = "knn", 
+ trControl=trctrl, tuneLength = 10)
+knn_fit
+test <- dfPC[-folds$Resample1, ]
+pred <- predict(knn_fit, newdata = test)
+# ------------------- Tue Feb 06 15:38:18 2018 --------------------#
+#Confusion Matrix
+confusionMatrix(pred, test$diagnosis_result, positive="M")
+# the 94.7% accuracy holds when comparing to the actual data. Sensitivity is .92 as one diagnosis was missed, but no false positives (specificity of 1).
+#Here's the original:
+confusionMatrix(prc_test_labels, prc_test_pred, positive="M")
+#While the specificity is the same, we can see that the sensitivity is .592, missing 11/16 malignant cases.
+```
+Training the model with 30% is probably the best explanation for why this model performs much better than the original. In addition, using the cross-validation with train from caret shows that with a tuneLength of 10, various iterations of k yield varying accuracies, so CV also improved the accuracy.
+</div>

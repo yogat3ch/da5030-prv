@@ -1,0 +1,413 @@
+---
+title: "Holsenbeck_S_2"
+author: "Stephen Synchronicity"
+date: '`r format(Sys.time(), "%Y-%m-%d")`'
+always_allow_html: yes
+header-includes:
+   - \usepackage{dcolumn}
+output: 
+  pdf_document: 
+  toc: no
+  latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE,warning=FALSE,cache=TRUE, fig.align='center', fig.height=3.5, fig.width=5, tidy=TRUE, tidy.opts=list(width.cutoff=80))
+rmarkdown::html_dependency_jquery()
+rmarkdown::html_dependency_bootstrap("spacelab")
+rmarkdown::html_dependency_jqueryui()
+set.seed(1)
+require("tidyverse")
+require("dplyr")
+require("htmltools")
+require(rvest)
+
+```
+```{r 'Assignment',eval=F}
+Q <- read_html("https://da5030.weebly.com/assignment-2.html") %>% html_nodes(xpath="//div[contains(@class,'paragraph')]/ol/li") %>% html_text()
+for (i in seq_along(Q)) {
+  Q[i] <- Q[i]  %>% gsub("^",paste("## ",i,"\n",sep=""),.,perl=T) %>% str_split("\n") %>% noquote()
+  print(Q[i]) 
+}
+```
+## 1
+<div class="q">
+ "The built-in dataset USArrests contains statistics about violent crime rates in the US States. Determine which states are outliers in terms of assaults. Outliers, for the sake of this question, are defined as values that are more than 1.5 standard deviations from the mean."
+</div>
+<div class="a">
+```{r '1 - Inspect Data and Determine Outliers'}
+summary(USArrests)
+str(USArrests)
+rownames(USArrests)
+data.frame(State=rownames(USArrests)[abs(scale(USArrests$Assault))>1.5],Number=USArrests$Assault[abs(scale(USArrests$Assault))>1.5],`Z-score`=scale(USArrests$Assault)[abs(scale(USArrests$Assault))>1.5])
+```
+</div>                                                                                      
+## 2
+
+<div class="q">
+ "For the same dataset as in (1), is there a correlation between murder and assault, i.e., as one goes up, does the other statistic as well? Comment on the strength of the correlation. Calculate the Pearson coefficient of correlation in R."
+</div>
+<div class="a">
+```{r '2 - Linear Regression Murder and Assault'}
+AssaultLM <- lm(Murder~Assault,data=USArrests)
+AssaultLM  %>% summary()
+plot(AssaultLM)
+```
+There appears to be a correlation between murder and assault that is significant at the .001 alpha level. The correlation has an adjusted $R^2$ of ~0.64 indicating that approximately 64% of the variance in murder arrests is explained by the variance in assault arrests. The $\beta$ coefficient indicates that for every assault arrest that is an increase in murder arrests by a multiplier of ~.04. 
+```{r '2 - Pearson Coefficient of Correlation'}
+cor(USArrests$Murder,USArrests$Assault)
+```
+</div>
+
+## 3
+
+<div class="q">
+ "Based on the data on the growth of mobile phone use in Brazil (you'll need to copy the data and create a CSV that you can load into R), forecast phone use for 2017 using a simple moving average, a 3-year weighted moving average (with weights of 4 for the most recent year, and 1 for the others), exponential smoothing (alpha of 0.2), and linear regression trendline."
+</div>
+<p class="a">
+For this task we could use a Quant package for R such as <a href="https://cran.r-project.org/web/packages/tidyquant/vignettes/TQ02-quant-integrations-in-tidyquant.html" target="_blank">Tidyquant</a> but for the purposes of demonstrating comprehension we can build a simple function to do the same.
+```{r '3 Data'}
+BrazilDF <- tibble::tribble(
+  ~Year, ~Subscribers,
+  2006L,    23188171L,
+  2007L,    28745769L,
+  2008L,    34880964L,
+  2009L,    46373266L,
+  2010L,    65605000L,
+  2011L,    86210336L,
+  2012L,    99918621L,
+  2013L,   120980103L,
+  2014L,   150641403L,
+  2015L,   173959368L,
+  2016L,   202944033L
+  )
+Brazil <- ts(data=matrix(data=c(BrazilDF$Subscribers,2*BrazilDF$Subscribers),ncol=2),start = c(2006,1),end=c(2016,1),frequency=1)
+#An additional column of dummy data is added to the tS object to test iteration of functions over multiple columns.
+ts <- Brazil
+```
+```{r '3 - Phone Use Forecast - SMA'}
+# ------------------- Thu Jan 25 20:06:07 2018 --------------------#
+#Simple Moving Average Last 3 Years
+#Inputs: ts object with annual frequency, accomodates multiple series, the lag time for the simple moving average
+#Outputs: A ts, graduated by 1 year, with the forecasted data
+SMA <- function(ts,trail=3) {
+  #Create descriptive variables
+  if(any(class(ts)=="ts")!=T){
+    stop("Input must be ts object")
+  }else{
+    vT <- time(ts)
+    colLen <- dim(ts)[2]
+    if (is.null(colLen)) {
+      colLen <- 1
+    }else if(colLen>1){len <- nrow(ts)}else{len <- length(ts)}
+ 
+  }
+
+sma <- vector()
+#If one data series
+if(colLen==1){for (i in 1:len) {
+  if(i-trail<1){smaRows <- seq(1,i)}else if(i<=len){smaRows <- seq(i-trail,i)}
+    if(i==1){sma <- ts[smaRows]}else{
+     sma <- append(sma,mean(ts[smaRows]),after=length(sma))
+    }
+}
+  sma <- ts(data=sma,start=min(time(ts))+1,end=max(time(ts))+1,frequency=1)
+}else{
+  for (i in 1:len) {#if multiple series
+    if(i-trail<1){smaRows <- seq(1,i)}else if(i<=len){smaRows <- seq(i-trail,i)}
+    if(i==1){sma <- ts[smaRows,]}else{
+     sma <- append(sma,apply(ts[smaRows,],2,FUN="mean"),after=length(sma))
+    }
+  }
+  sma <- ts(data=matrix(data=sma,ncol=colLen,byrow=T,dimnames = list(time(ts),sapply(colnames(ts),function(x){paste("SMAby",trail,x,sep="")},simplify=T))),start=min(time(ts)+1),end=max(time(ts)+1),frequency=1)
+}
+  
+return(sma)  
+}
+# ------------------- Thu Jan 25 22:34:48 2018 --------------------#
+SMA(ts)
+```
+```{r '3 - Weighted Moving Average'}
+# ------------------- Fri Jan 26 15:17:31 2018 --------------------#
+#Function for weighted moving average
+#Inputs: timeSeries objects with years as frequency, weights vector with ordered by years 1,2,3 etc)
+#Outputs: timeSeries object with year as frequency, starting at the first year in the input vector plus the length of the weights vector (the number of years prior the weighted moving average takes into account), with 1 additional forecast year.
+WMA <- function(ts,weights=c(4,3,2,1)) {
+  #Create descriptive variables
+  trail <- length(weights)
+  weights <- sort(weights,decreasing=T)
+  if(any(class(ts)=="ts")!=T){
+    stop("Input must be ts object")
+  }else{
+    colLen <- dim(ts)[2]
+    if (is.null(colLen)) {
+      colLen <- 1
+    }else if(colLen>1){len <- nrow(ts)}else{len <- length(ts)}
+  }
+  #If one data series
+  wma <- vector()
+if(colLen==1){for (i in seq(trail+1,len+1)) {
+  wmaRows <- rev(seq(i-trail,i-1)) #Reverse the order of rows for vector multiplication
+    wma <- sum(ts[wmaRows]*weights)/sum(weights)
+     wma <- append(sma,mean(ts[wmaRows]),after=length(sma))
+     wma <- ts(data=wma,start=min(time(ts))+1,end=max(time(ts))+1,frequency=1)
+    }
+  }else{#If more than one data series
+  for (i in seq(trail+1,len+1)) {
+    wmaRows <- rev(seq(i-trail,i-1))
+     wma <- append(wma,apply(ts[wmaRows,],2,FUN=function(x){sum(x*weights)/sum(weights)}),after=length(wma))
+  }
+    wma <- ts(data=matrix(data=wma,ncol=colLen,byrow=T,dimnames = list(c(time(ts)[seq(trail+1,length(time(ts)))],max(time(ts))+1),sapply(colnames(ts),function(x){paste("WMAby",trail,x,sep="")},simplify=T))),start=min(time(ts)+trail),end=max(time(ts)+1),frequency=1)
+  }
+ 
+return(wma)
+}
+WMA(ts)
+```
+```{r '3 - Exponential Smoothing'}
+# ------------------- Fri Jan 26 16:35:15 2018 --------------------#
+#Function for exponential smoothing
+#Input: timeSeries object (with any amount of columns of data) with year frequency, and alpha value
+#Output: A timeseries objects with Exponential smoothing values including an additional year forecast and error values for each data series in original object
+
+ES <- function(ts,alpha=.3) {
+  vT <- time(ts)
+  if(any(class(ts)=="ts")!=T){
+    stop("Input must be ts object")
+  }else{
+    columns <- colnames(ts)
+    colLen <- dim(ts)[2]
+    
+    if (is.null(colLen)) {colLen <- 1
+    }else if(colLen>1){
+      ts <- rbind(ts,0)
+      len <- nrow(ts)
+    } 
+    if(colLen==1){ts <- append(ts,0)
+    len <- length(ts)}
+  }
+  
+  #If one data series
+  matES <- matrix(rep(0,2*colLen*len),ncol=2*colLen)
+if(colLen==1){
+  for (i in 1:len) {
+  if(i==1){ #Copy the value and add 0 errors for first value
+  matES[i] <- ts[i]
+  esE <- 0}else if(i<len){ #Exponential smooth with errors up to the forecast value
+    matES[i,1] <- matES[i-1,1]+alpha*matES[i-1,2]
+    matES[i,2] <- ts[i]-matES[i,1]
+  }else {#Just add the forecast, no error
+     matES[i,1] <-  matES[i-1,1]+alpha* matES[i-1,2]}
+    }
+  }else{#If more than one data series
+    for (c in 1:colLen) { #traverse columns
+      if(c>1){m <- c*2-1}else{m <- c} #make sure data is being added to appropriate column of matrix
+      for (i in 1:len) {
+        if(i==1){ #Copy the value and add 0 errors for first value
+          matES[i,m] <- ts[i,c]
+  matES[i,c*2] <- 0}else if(i<len){ #Exponential smooth with errors up to the forecast value
+    matES[i,m] <- matES[i-1,m]+alpha*matES[i-1,c*2]
+    matES[i,c*2] <- ts[i,c]-matES[i,m]
+  }else {#Just add the foremast, no error
+    matES[i,m] <- matES[i-1,m]+alpha*matES[i-1,c*2]}
+      }
+    }
+  }
+  tsES <- cbind(ts,matES) #Combine original with forecasted
+ colnames(tsES) <- c(columns,as.vector(sapply(columns,function(x){c(paste("ES",x,sep=""),paste("ESError",x,sep=""))},simplify=T))) #add col names
+ tsES <- ts(data=tsES,start=min(vT),end=max(vT)+1,frequency=1) # make it into a timeSeries
+return(tsES)
+}
+ES(ts)
+```
+```{r '3 - Linear Model'}
+# ------------------- Tue Jan 30 14:30:40 2018 --------------------#
+# Predict and Forecast an Additional Year based on LM
+TSLM <- function(ts){
+  vT <- time(ts)
+  if(any(class(ts)=="ts")!=T){
+    stop("Input must be ts object")
+  }else{
+    columns <- colnames(ts)
+    colLen <- dim(ts)[2]
+    if (is.null(colLen)) {colLen <- 1
+    tslm <- lm(ts~vT)
+    }else if(colLen>1){len <- nrow(ts)
+     
+    tsout <- rbind(ts,0)} 
+    if(colLen==1){tsout <- append(ts,0)
+    len <- length(ts)}
+  }
+  dflm <- as.data.frame(matrix(data=tsout,ncol=colLen))
+  if(colLen==1){
+  tsout <- cbind(tsout,predict(tslm,newdata = data.frame(vT=append(vT,max(vT)+1))))
+  }else{#If more than one data series
+    
+    for (c in 1:colLen) { #traverse columns
+      tslm <- lm(ts[,c]~vT)
+      tsout <- cbind(tsout,predict(tslm,newdata = data.frame(vT=append(vT,max(vT)+1))))
+    }
+  } #Combine original with forecasted
+ colnames(tsout) <- c(columns,as.vector(sapply(columns,function(x){paste("LM",x,sep="")},simplify=T))) #add col names
+ tsLM <- ts(data=tsout,start=min(vT),end=max(vT)+1,frequency=1) # make it into a timeSeries
+return(tsLM)
+}
+TSLM(ts)
+```
+
+</p>
+
+## 4
+
+<div class="q">
+ "Calculate the average mean squared error for each model, i.e., use the model to calculate a forecast for each given time period and then the error."
+<div class="a">
+If MSE is assumed to be $\frac{\sum^{n}_{i=1}(y_i-\hat{y}_i)^2}{n}$ then the following function returns a list with the prediction timeSeries object the MSE value for the prediction. 
+</div>
+<div class="a">
+```{r '4 - MSE'}
+# ------------------- Tue Jan 30 15:45:09 2018 --------------------#
+#Function to calculate a prediction and MSE for predictor
+#Inputs: type: one of SMA,WMA,ES or LM | trail: number of years to trail for SMA,
+#weights: vector of weights in any order for WMA, alpha: alpha value for ES
+#MSE is assumed to be 
+
+MSE <- function(ts,type="SMA",trail=3,weights=c(4,3,2,1),alpha=.3) {
+  vT <- time(ts)
+  if(type=="SMA"){
+    tssma <- SMA(ts,trail)
+    tsPredict <- window(tssma,start=min(vT),end=max(vT))
+    tMatch <- time(tsPredict)
+    tsOrig <- window(ts,start=min(tMatch),end=max(tMatch))
+    if(is.null(dim(ts))){mse <- sqrt(mean((tsOrig-tsPredict)^2))}else{
+      colLen <- dim(ts)[2]
+      mse <- vector()
+      for(c in 1:colLen){
+        mse[c] <- mean((tsOrig[,c]-tsPredict[,c])^2)
+      }
+      mse <- mean(mse)
+    }
+    
+    out <- list(Prediction=tssma,MSE=mse)
+  }else if(type=="WMA"){
+   tswma <- WMA(ts,weights)
+   tsPredict <- window(tswma,start=min(vT),end=max(vT))
+    tMatch <- time(tsPredict)
+    tsOrig <- window(ts,start=min(tMatch),end=max(tMatch))
+    if(is.null(dim(ts))){mse <- sqrt(mean((tsOrig-tsPredict)^2))}else{
+      colLen <- dim(ts)[2]
+      mse <- vector()
+      for(c in 1:colLen){
+        mse[c] <- mean((tsOrig[,c]-tsPredict[,c])^2)
+      }
+      mse <- mean(mse)
+    }
+     out <- list(Prediction=tswma,MSE=mse)
+  }else if(type=="ES"){
+    tses <- ES(ts,alpha)
+    tsPredict <- window(tses,start=min(vT),end=max(vT))
+    tMatch <- time(tsPredict)
+    tsOrig <- window(ts,start=min(tMatch),end=max(tMatch))
+    
+    if(is.null(dim(ts))){mse <- sqrt(mean((tsOrig-tsPredict)^2))}else{
+      colLen <- dim(ts)[2]
+      mse <- vector()
+      for(c in 1:colLen){
+        if(colLen>1){m <- c*2+1}
+        mse[c] <- mean((tsOrig[,c]-tsPredict[,m])^2)
+      }
+      mse <- mean(mse)
+    }
+     out <- list(Prediction=tses,MSE=mse)
+  }else{
+    tslm <- TSLM(ts)
+    tsPredict <- window(tslm,start=min(vT),end=max(vT))
+    tMatch <- time(tsPredict)
+    tsOrig <- window(ts,start=min(tMatch),end=max(tMatch))
+    
+    if(is.null(dim(ts))){mse <- sqrt(mean((tsOrig-tsPredict)^2))}else{
+      colLen <- dim(ts)[2]
+      mse <- vector()
+      for(c in 1:colLen){
+        if(colLen>1){m <- colLen+c}
+        mse[c] <- mean((tsOrig[,c]-tsPredict[,m])^2)
+      }
+      mse <- mean(mse)
+    }
+     out <- list(Prediction=tslm,MSE=mse)
+  }
+  return(out)
+}
+MSE(ts,type="LM")
+```
+</div> 
+
+## 5
+
+<div class="q">
+ "Which model has the smallest mean squared error (MSE)?"
+</div>
+<div class="a">
+```{r '5 - Model with Least MSE'}
+types <- c("SMA","WMA","ES","LM")
+vMSE <- vector()
+for (i in seq_along(types)) {
+  predList <- MSE(ts,types[i])
+  vMSE[i] <- predList$MSE
+}
+types[vMSE==min(vMSE)]
+```
+<p>The Linear Regression model has the smallest MSE.</p>
+</div> 
+
+## 6
+
+<div class="q">
+ "Calculate a weighted average forecast by averaging out the three forecasts calculated in (3) with the following weights: 3 for trend line, 2 for exponential smoothing, 1 for weighted moving average. Remember to divide by the sum of the weights in a weighted average."
+</div>
+<div class="a">
+```{r '6 Weighted Average Forecast WAF'}
+# ------------------- Tue Jan 30 22:33:07 2018 --------------------#
+#WAF Function for creating a Weighted Average Forecast using linear regression (trendline), exponential smoothing, and weighted moving average with specified weights
+#Inputs: original timeSeries object, alpha: alpha for the exponential smoothing, wmawgts: Weights for weighted moving average, and wafwgts: weights for the weighted average forecast
+#Outputs: A tS object with predictions all years + 1 year for each series in the original tS
+
+WAF <- function(ts,alpha=.3,wmawgts=c(4,3,2,1),wafwgts=c(LM=3,ES=2,WMA=1)) {
+  vT <- time(ts)
+  tslm <- TSLM(ts)
+  tses <- ES(ts,alpha)
+  tswma <- WMA(ts,wmawgts)
+  minWMA <- min(time(tswma))
+  vP <- time(tslm)
+  wafPredict<- vector()
+  if(is.null(dim(ts))){
+    for (t in seq_along(vP)) {
+      avg <- vector()
+     avg[1] <- wafwgts['LM'] * window(tslm[,2],start=vP[t],end=vP[t])
+     avg[2]  <- wafwgts['ES'] * window(tses[,2],start=vP[t],end=vP[t])
+      if(vP[t]>=minWMA){avg[3] <- wafwgts['WMA'] * window(tswma,start=vP[t],end=vP[t])}
+     wafPredict[t] <- sum(avg)/sum(wafwgts)
+    }
+    out <- ts(data=wafPredict,start=min(vP),end=max(vP),frequency=1)
+  }else{
+      colLen <- dim(ts)[2]
+      for (c in 1:colLen) {
+        for (t in seq_along(vP)) {
+      avg <- vector()
+        #column counters for special output timeseries (I'm regretting making output timeSeries some with just predictions and some with both predictions and the original as it's making the counter system for cases with additional columns complicated.)
+        clm <- c+colLen
+        ces <- c*2+1
+        avg[1] <- wafwgts['LM'] * window(tslm[,clm],start=vP[t],end=vP[t])
+        avg[2] <- wafwgts['ES'] * window(tses[,ces],start=vP[t],end=vP[t])
+        if(vP[t]>=minWMA){avg[3] <- wafwgts['WMA'] * window(tswma[,c],start=vP[t],end=vP[t])}
+        if(c>1){predi <- ((c-1)*length(vP))+t}else{predi <- t}
+     wafPredict[predi] <- sum(avg)/sum(wafwgts)
+        }
+    }
+    out <- ts(data=matrix(data=wafPredict,ncol=colLen),start=min(vP),end=max(vP),frequency=1)
+  }
+  return(out)
+}
+WAF(ts)
+```
+</div>

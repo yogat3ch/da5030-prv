@@ -1,0 +1,318 @@
+---
+title: "Holsenbeck_S_1"
+author: "Stephen Synchronicity"
+date: '`r format(Sys.time(), "%Y-%m-%d")`'
+always_allow_html: yes
+header-includes:
+   - \usepackage{dcolumn}
+output: 
+  html_document: 
+    self_contained: false
+    css: ~/R/win-library/3.4/neuhwk/rmarkdown/templates/DA5030/resources/bootstrap.min.css
+    highlight: zenburn
+    keep_md: no
+    theme: spacelab
+    toc: yes
+    toc_float: true
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE,warning=FALSE,cache=TRUE, fig.align='center', fig.height=3.5, fig.width=5, tidy=TRUE, tidy.opts=list(width.cutoff=80))
+rmarkdown::html_dependency_jquery()
+rmarkdown::html_dependency_bootstrap("spacelab")
+rmarkdown::html_dependency_jqueryui()
+set.seed(1)
+require("tidyverse")
+require("dplyr")
+require("htmltools")
+require("rvest")
+require(stringr)
+```
+```{r 'Assignment',eval=F}
+#Set Assignment html below
+Q <- read_html("https://da5030.weebly.com/practicum-1.html") %>% html_nodes(xpath="//div[contains(@class,'paragraph')]/ol/li")
+for (i in seq_along(Q)) {
+  Q[i] <- Q[i]  %>% gsub("<li>",paste("## ",i,"\n<div class='q'>",sep=""),.,perl=T) %>% gsub("</li>",paste("\n</div>\n<p class='a'>\n```{r '",i,"'}\n```\n</p>",sep=""),.,perl=T) %>%  str_split("\n")
+}
+sapply(Q, FUN="cat",sep='\n',simplify=T)
+```
+## 1
+<div class='q'>(0 pts) Download the data set <a href="https://archive.ics.uci.edu/ml/machine-learning-databases/glass/glass.data" target="_blank">Glass Identification Database</a> along with its <a href="https://archive.ics.uci.edu/ml/machine-learning-databases/glass/glass.names" target="_blank">explanation</a>. Note that the data file does not contain header names; you may wish to add those. The description of each column can be found in the data set explanation. This assignment must be completed within an <a href="http://rmarkdown.rstudio.com/r_notebooks.html#overview" target="_blank">R Markdown Notebook</a>.
+</div>
+<p class='a'>
+```{r '1'}
+glass <- read.csv("https://archive.ics.uci.edu/ml/machine-learning-databases/glass/glass.data",stringsAsFactors = F,header=F)
+names <- c("1. Id number: 1 to 214",
+   "2. RI: refractive index",
+   "3. Na: Sodium (unit measurement: weight percent in corresponding oxide, as are attributes 4-10)",
+   "4. Mg: Magnesium",
+   "5. Al: Aluminum",
+   "6. Si: Silicon",
+   "7. K: Potassium",
+   "8. Ca: Calcium",
+   "9. Ba: Barium",
+  "10. Fe: Iron",
+  "11. Type of glass: (class attribute)
+      -- 1 building_windows_float_processed
+      -- 2 building_windows_non_float_processed
+      -- 3 vehicle_windows_float_processed
+      -- 4 vehicle_windows_non_float_processed (none in this database)
+      -- 5 containers
+      -- 6 tableware
+      -- 7 ")
+Names <- names %>% str_extract_all("(?<=(?:\\d\\d?\\.\\s))\\w{1,4}\\s?\\w+") %>% unlist()
+#fix(Names)
+colnames(glass) <- Names
+rownames(glass) <- glass$`Id number`
+glass <- glass[, -1]
+glass$Type <- as.factor(glass$Type)
+glassOrig <- glass
+class(glass$Type)
+```
+</p>
+
+## 2
+<div class='q'>(0 pts) Explore the data set as you see fit and that allows you to get a sense of the data and get comfortable with it.
+</div>
+<p class='a'>
+```{r '2'}
+View(glass)
+summary(glass)
+```
+</p>
+
+## 3
+<div class='q'>(5 pts) Create a histogram of the <em>Na </em>column and overlay a normal curve; visually determine whether the data is normally distributed. You may use the code from this <a href="http://www.statmethods.net/graphs/density.html" target="_blank">tutorial</a>. Does the <em>k-NN</em> algorithm require normally distributed data or is it a non-parametric method? <span style="color:rgb(85, 85, 85)">Comment on your findings. </span>
+
+</div>
+<p class='a'>
+```{r '3'}
+bw <- {diff(range(glass$Na)) / 30}
+# ------------------- Wed Feb 07 20:01:37 2018 --------------------#
+# Create histogram with normal curve
+ggplot(glass,mapping=aes(x=Na, binwidth=bw))+
+  geom_histogram(position="stack", aes(y = ..density.., fill=Type), color="black", binwidth=bw)+
+  stat_function(fun = dnorm, args = list(mean = mean(glass$Na), sd = sd(glass$Na)))+
+  theme_light()
+# The data looks left skewed
+# ------------------- Wed Feb 07 20:30:27 2018 --------------------#
+#QQ plot and Shapiro Wilk test of normality
+qqnorm(glass$Na)
+qqline(glass$Na)
+# Numerous data points deviate from the normal line
+shapiro.test(glass$Na)
+#SW test confirms a rejection of the null hyp. that data is normally distributed.
+```
+The kNN algorithm was explicity defined as not making any assumptions about the underlying data, therefore the underlying data does not need to be normally distributed. IE kNN is a non-parametric test.
+
+</p>
+
+## 4
+<div class='q'>(5 pts) After removing the ID column (column 1), normalize the first two columns in the data set using <em>min-max normalization</em>.
+</div>
+<p class='a'>
+```{r '4'}
+# ------------------- Wed Feb 07 20:45:23 2018 --------------------#
+#Normalize using minmax normalization
+normalize <- function(x) {
+return ((x - min(x)) / (max(x) - min(x))) }
+glass[, c(1,2)] <- apply(glass[, c(1,2)],2,FUN="normalize")
+```
+</p>
+
+## 5
+<div class='q'>(5 pts) Normalize the remaining columns, <span style="color:rgb(85, 85, 85)">except the last one, </span>using <em>z</em>-score standardization. The last column is the glass type and so it is excluded.
+</div>
+<p class='a'>
+```{r '5'}
+# ------------------- Wed Feb 07 20:49:50 2018 --------------------#
+#Normalize using z-score
+glass[, seq(3, {length(glass) - 1})] <- apply(glass[, seq(3, {length(glass) - 1})], 2, FUN="scale")
+```
+</p>
+
+## 6
+<div class='q'>(5 pts) The data set is sorted, so creating a validation data set requires random selection of elements. Create a stratified sample where you randomly select 50% of each of the cases for each glass type to be part of the validation data set. The remaining cases will form the training data set.
+</div>
+<p class='a'>
+```{r '6'}
+# ------------------- Wed Feb 07 20:55:50 2018 --------------------#
+#Create stratified train & test set
+library(caret)
+#createDataPartition automatically stratifies based on factor levels
+lglStrat <- createDataPartition(glass$Type,list=F)
+glassTrain <- glass[lglStrat, ]
+glassTest <- glass[{- lglStrat}, ]
+```
+</p>
+
+## 7
+<div class='q'>(20 pts) Implement the <em>k-NN</em> algorithm in R (do not use an implementation of <em>k-NN</em> from a package) and use your algorithm with a <em>k=10</em> to predict the glass type for the following two cases:. Use the whole normalized data set for this; not just the training data set. Note that you need to normalize the values of the new cases the same way as you normalized the original data.<br><font color="#24678d">RI = 1.51621 | 12.53 | 3.48 | 1.39 | 73.39 | 0.60 | 8.55 | 0.00 | Fe = 0.05<br>RI = 1.5098 | 12.77 | 1.85 | 1.81 | 72.69 | 0.59 | 10.01 | 0.00 | Fe = 0.01</font>
+
+</div>
+<p class='a'>
+Using two different modes of normalization certainly serves to complicate things! Min-Max normalization produces less accurate predictions than does percent_rank or scale, as we found in the previous lesson. It's unfortunate that we have to continue to complicate matters with it.
+```{r '7'}
+# ------------------- Wed Feb 07 21:10:36 2018 --------------------#
+#This is the kNN implementation provided in the lecture from my classnotes with some modifications
+#Mode
+
+# Mode <- function(x) {
+#   out <- table(x)[which(table(x) %in% max(table(x)))]
+#   if(length(out)>1){
+#   nms  <- names(out)
+#   out  <- c("Tie:",nms)
+#   }else {out <- as.numeric(names(out))}
+#   return(out)
+# } #Tried to improve mode function in the case of a tie, but this can't be viably used to evaluate accuracy. If there's a tie and the first max is selected, it could be inaccurate, and algorithm will just be less accurate.
+Mode <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+# ------------------- Wed Feb 07 21:41:36 2018 --------------------#
+#Function: k-Nearest Neighbors Implementation
+#Input: train - training dataset,
+#       u - is an input vector of numeric value attributes of unknown factor/category
+#Output is 
+o <- glassOrig
+u <- matrix(data=c(1.51621,12.53,3.48,1.39,73.39,0.60,8.55,0.00,0.05,1.5098,12.77,1.85,1.81,72.69,0.59,10.01,0.00,0.01),nrow=2,byrow=T)
+train <- glassTrain
+k <- 10
+ScaleU <- function(o,u) {
+# ------------------- Thu Feb 08 13:25:55 2018 --------------------#
+# ScaleU: Scale Unknown numeric data
+# Inputs: 
+# o - original data with numeric data matching unknown for scaling purposes
+# u - unknown data
+# Output: Unknown data in df format scaled to fit original
+# Determine dimensions of unknown
+ u <- as.data.frame(u)
+# Establish which columns are numeric and can be scaled
+ numColsO <- sapply(o,is.numeric)
+ numColsU <- sapply(u,is.numeric)
+# Subset both to contain just numeric cols
+ numO <- o[, numColsO]
+ numU <- u[, numColsU]
+ r <- dim(numU)[1]
+ c <- dim(numU)[2]
+# Extract the colnames
+ cNames <- colnames(numO)
+ if(identical(length(numO),length(numU))){
+# Convert to matrix so rbind does not throw match.names error
+ numO <- as.matrix(numO)
+ numU <- as.matrix(numU)
+# Add unknown to original data
+ mScale <- rbind(numU, numO)
+# Apply the normalize, and scale function
+ mScaled <- cbind(apply(mScale[, c(1,2)], 2, normalize),apply(mScale[, -c(1,2)], 2, scale))
+# Extract the scaled unknown data off the top of the scaled matrix
+ Unknown <- as.data.frame(mScaled[1:r, 1:c])
+ }else {stop("Unknown and Original have different numerical columns")}
+if(c < length(u)){Unknown <-  u[, numColsU] <- Unknown} #If there are additional columns in the original unknown, combine the scaled numeric with the orig. unknown
+ colnames(Unknown) <- cNames
+ o[ ,numColsO] <- mScaled[-c(1:r), ]
+ out <- list(Original=o,Unknown=Unknown)
+ return(out)
+}
+scaledData <- ScaleU(o,u)
+gknn <- function(cat, train, u, k) {
+# ------------------- Thu Feb 08 14:45:49 2018 --------------------#
+# gknn: Global knn fn
+# Inputs: 
+# cat - Character string name of category of interest in Train for which knn is attempting to predict for unknown
+# train - training set (with or without cat, doesn't matter) that has same numerical attributes as unknown and rowname IDs that match cat
+# u - unknown numerical attributes scaled with original
+# k - k nearest neighbors specification
+
+  m <- nrow(train) # Number of row in train
+  numColsT <- sapply(train, is.numeric)
+  numColsU <- sapply(u, is.numeric)# Identify the numeric cols in Train
+  numTrain <- train[, numColsT]
+  numU <- u[, numColsU]# Subset training to numeric cols
+  nms <- rownames(train) # Save the rownames
+  
+Euclid <- function(uRow,nms,k){
+  uRow <- as.numeric(uRow)
+  ngbrs <- vector() # Create a vector for the distances
+  for (i in 1:m) {
+   # Save the ID name
+  p <- as.numeric(numTrain[i, ]) #Row of training set
+ngbrs[i] <- sum(sqrt({p-uRow}^2)) # Calculate the distance with Euclidean
+  }
+  names(ngbrs) <- nms # Reapply the rownames
+  k.closest <- names(sort(ngbrs)[1:k]) # Find the 10 closest rows
+  catPred <- Mode(train[k.closest,cat]) #Find Mode of votes as predicted category
+  return(catPred)
+}
+catPred <- apply(numU, 1, FUN=Euclid, nms=nms, k=10) # Apply to rows of unknown to get a vector of predicted categories
+return(catPred)
+}
+# ------------------- Thu Feb 08 16:37:40 2018 --------------------#
+# Testing the gknn function
+gknn('Type',scaledData$Original,scaledData$Unknown,10)
+# It guesses 2 for both, just out of curiosity lets see what the Mode for the Type factor is
+table(scaledData$Original$Type)
+# It's 2, as intuited.
+```
+With k = 10, this implementation of knn is likely biased towards the mode of the dataset. A distance weighting metric might overcome this bias.
+</p>
+
+## 8
+<div class='q'>(10 pts) Apply the <em>knn </em>function from the <em><strong>class </strong></em>package with <em>k=14</em> and redo the cases from Question (7).
+</div>
+<p class='a'>
+```{r '8'}
+```
+</p>
+
+## 9
+<div class='q'>(10 pts) Determine the accuracy of the <em>knn</em> function with <em>k=14</em> from the <em><strong>class </strong></em>package by applying it against each case in the validation data set. What is the percentage of correct classifications?
+</div>
+<p class='a'>
+```{r '9'}
+```
+</p>
+
+## 10
+<div class='q'>(7 pts) Determine an optimal <em>k</em> by trying all values from 5 through 14 for your own <em>k-NN</em> algorithm implementation against the cases in the validation data set. What is the optimal <em>k</em>, <em>i.e.</em>, the <em>k</em> that results in the best accuracy? Plot <em>k</em> versus accuracy.
+</div>
+<p class='a'>
+```{r '10'}
+```
+</p>
+
+## 11
+<div class='q'>(5 pts) Create a plot of <em>k</em> (x-axis) versus error rate (percentage of incorrect classifications) using <em>ggplot</em>.
+</div>
+<p class='a'>
+```{r '11'}
+```
+</p>
+
+## 12
+<div class='q'>(5 pts) Produce a cross-table confusion matrix showing the accuracy of the classification using a package of your choice and a <em>k</em> of your choice.
+</div>
+<p class='a'>
+```{r '12'}
+```
+</p>
+
+## 13
+<div class='q'>(3 pts) Comment on the run-time complexity of the <em>k-NN</em> for classifying <em>w</em> new cases using a training data set of <em>n</em> cases having <em>m</em> features. Assume that <em>m</em> is "large". How does this algorithm behave as <em>w</em>, <em>n</em>, and <em>m</em> increase? Would this algorithm be "fast" if the training data set and the number of features are large?
+</div>
+<p class='a'>
+```{r '13'}
+```
+</p>
+## 14
+<div class='q'>(10 pts) Investigate this <a href="/uploads/8/6/5/9/8659576/housesalesprediction.zip">data set of home prices in King County (USA)</a>. How many cases are there? How many features? Imagine you are a real estate broker and are advising home sellers on how much their home  is worth. Research and think about how you might use <em>kNN </em>to forecast (predict) the likely sales price for a home? Build a forecasting model with <em>kNN </em>and then forecast the price of some home (you can determine its features). How would you evaluate the model?
+</div>
+<p class='a'>
+```{r '14'}
+```
+</p>
+## 15
+<div class='q'>(10 pts) Inspect the <a href="/uploads/8/6/5/9/8659576/occupancyratestimeseries.csv">data set of occupancy rates</a> for a series of time periods. Which forecasting method is most appropriate to use for forecast the next time period? Calculate a forecast for the next time period with a 95% prediction interval. Comment on the bias of your forecasting model.
+</div>
+<p class='a'>
+```{r '15'}
+```
