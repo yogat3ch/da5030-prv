@@ -261,7 +261,12 @@ With k = 10, this implementation of knn is likely biased towards the mode of the
 </div>
 <p class='a'>
 ```{r '8'}
+library(class)
+knn(scaledData$Original,cbind(scaledData$Unknown,gknn('Type',scaledData$Original,scaledData$Unknown,10)),scaledData$Original$Type,k=14)
+# ------------------- Thu Feb 08 16:55:51 2018 --------------------#
+# It appears that the knn algorithm from class has the same bias with k=14
 ```
+After looking at the code for class::knn using fix(), I am pretty clueless as to how it computes nearest neighbors and am unable to provide any hypotheses as to why it predicts the same classifications for the unknown data.
 </p>
 
 ## 9
@@ -269,7 +274,11 @@ With k = 10, this implementation of knn is likely biased towards the mode of the
 </div>
 <p class='a'>
 ```{r '9'}
+predTest <- class::knn(scaledData$Original,glassTest,scaledData$Original$Type,k=14)
+library(caret)
+confusionMatrix(predTest,glassTest$Type)
 ```
+The percentage of correct classifications is 95%.
 </p>
 
 ## 10
@@ -277,6 +286,7 @@ With k = 10, this implementation of knn is likely biased towards the mode of the
 </div>
 <p class='a'>
 ```{r '10'}
+
 ```
 </p>
 
