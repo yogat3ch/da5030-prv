@@ -307,6 +307,9 @@ The lowest k-value of 5 has the best accuracy with ~81%.
 </div>
 <p class='a'>
 ```{r '11'}
+# ------------------- Thu Feb 08 18:00:38 2018 --------------------#
+# This is going to be 1-Accuracy
+plot(x=names(predictions),y={1 - lapply( predictions , "[[" , "Acc" ) %>% unlist()},main="k v Error Rate",xlab="k-Value",ylab="Error Rate")
 ```
 </p>
 
