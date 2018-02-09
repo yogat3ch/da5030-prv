@@ -286,8 +286,19 @@ The percentage of correct classifications is 95%.
 </div>
 <p class='a'>
 ```{r '10'}
-
-```
+predictions <- vector("list",10) 
+names(predictions) <- 5:14 
+for(i in 5:14){ 
+  print(i) 
+  Pred <- gknn('Type', scaledData$Original, glassTest, k=i) 
+  predictions[[as.character(i)]] <- list(Pred=Pred,Acc=confusionMatrix(Pred,glassTest$Type)$overall[['Accuracy']]) 
+} 
+# ------------------- Thu Feb 08 17:57:52 2018 --------------------# 
+# Render an ugly plot :D 
+ 
+plot(x=names(predictions),y=lapply( predictions , "[[" , "Acc" ),main="k v Accuracy",xlab="k-Value",ylab="Accuracy") 
+``` 
+The lowest k-value of 5 has the best accuracy with ~82%. 
 </p>
 
 ## 11
@@ -306,22 +317,96 @@ plot(x=names(predictions),y={1 - lapply( predictions , "[[" , "Acc" ) %>% unlist
 </div>
 <p class='a'>
 ```{r '12'}
+getModelInfo("kknn")
+trainIndex <- createDataPartition(scaledData$Original$Type,times = 5,p = .8)
+trCtrl <- caret::trainControl(method="repeatedcv", number=10, repeats = 4,index = trainIndex)
+hyperknn <- train(Type ~ ., data=scaledData$Original, method='kknn', trControl = trCtrl, tuneGrid = data.frame(kmax = rep(c(3:20),10),
+           distance = rep(rep(1,18),10),
+           kernel = c(rep('rectangular',18),rep("triangular",18), rep("epanechnikov",18),rep("biweight",18),              rep("triweight",18),rep("cos",18), rep("inv",18), rep("gaussian",18), rep("rank",18), rep("optimal",18)),stringsAsFactors = F
+           ))
+hyperknnPred <- predict(hyperknn,newdata = glassTest)
+confusionMatrix(hyperknnPred,glassTest$Type)
+simpleknn <- train(Type ~ ., data=scaledData$Original, method='knn', trControl = trCtrl, tuneLength = 20)
+simpleknnPred <- predict(simpleknn,newdata = glassTest)
+confusionMatrix(simpleknnPred,glassTest$Type)
 ```
+It looks like the simplest implementation that we created in 10 is the most accurate.
 </p>
 
 ## 13
 <div class='q'>(3 pts) Comment on the run-time complexity of the <em>k-NN</em> for classifying <em>w</em> new cases using a training data set of <em>n</em> cases having <em>m</em> features. Assume that <em>m</em> is "large". How does this algorithm behave as <em>w</em>, <em>n</em>, and <em>m</em> increase? Would this algorithm be "fast" if the training data set and the number of features are large?
 </div>
 <p class='a'>
-```{r '13'}
-```
+$w*(n*(m_{subtract}+m_{squared}+m_{sqrt}+m_{sum})+sort+subset+unique+match+tabulate+max+subset)$  
+$(m_{subtract}+m_{squared}+m_{sqrt}+m_{sum}):$ One row of the new cases requires subtraction of it's m features from the corresponding m features in the train set $m_{subtract}$, squaring of each of those values $m_{squared}$, taking the square root of each value $m_{sqrt}$, and adding each in succession for a sum $m_{sum}$. This must be done for every row in the train set $n*$. This vector is then sorted $sort$, and subsetted $subset$. To find the Mode, this data is then put through unique, match, tabulate, and max functions, and then the unique vector is subsetted based on the result. This is iterated for each new case $w$.  
+The multiplicative nature of the computational load makes it such that the algorithm can slow down as the size of the data grows. The computational time can be reduced through feature selection (possibly through regression) which will reduce m, or by reducing the number of cases in the training set that are considered. There are various methods of doing so, such as the KD tree method that subsets the training set by median values (similar to how the game Jezzball works). However, this method can miss some nearest neighbors.
 </p>
 ## 14
 <div class='q'>(10 pts) Investigate this <a href="/uploads/8/6/5/9/8659576/housesalesprediction.zip">data set of home prices in King County (USA)</a>. How many cases are there? How many features? Imagine you are a real estate broker and are advising home sellers on how much their home  is worth. Research and think about how you might use <em>kNN </em>to forecast (predict) the likely sales price for a home? Build a forecasting model with <em>kNN </em>and then forecast the price of some home (you can determine its features). How would you evaluate the model?
 </div>
 <p class='a'>
 ```{r '14'}
+hdata <- read.csv("~/Northeastern/Git/da5030/Practicum 1/kc_house_data.csv")
+any(is.na(hdata))
+str(hdata)
+dim(hdata)[1] # Cases
+dim(hdata)[2] # Features
 ```
+A broker can order an appraisal of a home in question that reports the same features as the ones found in this dataset. kNN can then be used to find the nearest neighbors (not literally in the context of homes :D) based on the features of the home in question. Provided that King's county has homogeneity in external features such as accessibility to amenities, schools, geography, crime rate, solar potential etc in all areas, the price of the nearest neighbors can be used to predict the price of the house in question. In this instance, we are attempting to predict a continuous value, namely price, so knn.reg (regression) is suited for this case.
+```{r '14 cont'}
+# ------------------- Thu Feb 08 21:24:57 2018 --------------------#
+#Use knn to select nearest neighbors for imaginary home
+
+options(scipen=12)
+u <- sapply(hdata,sample,size=1) # Sample the data at random to create dummy data for a house.  
+loc <- names(u)[18:19] # Lat & long don't need normalization, and since we're assuming that location doesn't matter for this county, they can be removed
+facts <- names(u)[c(4,5,8:12,17)] #Factors, but can be treated as numeric
+ 
+ud <- u[-c(1:2,14,15,17)] # Remove id, date, zipcode, lat, long
+od <- hdata[-c(1:2,14,15,17)]
+
+toScale <- rbind(ud,od) # Combine the two sets for setting classes and normalizing
+toScale <- apply(toScale,2,scale) # Scale
+ud <- as.data.frame(toScale[1, ]) #Unknown
+od <- as.data.frame(toScale[-1, ]) #Original Data
+trainIndex <- createDataPartition(od$price,times = 5,p = .8)
+trCtrl <- caret::trainControl(method="repeatedcv", number=10, repeats = 4,index = trainIndex)
+
+#Create new method for Caret to use knn.reg
+knn.reg.caret <- list(type = "Regression",
+              library = "FNN",
+              loop = NULL)
+prm <- data.frame(parameter = c("k", "algorithm"),
+                  class = c("numeric", "character"),
+                  label = c("k-Neighbors", "Algorithm"))
+knn.reg.caret$prm <- prm
+knn.reg.Grid <- function(x, y, len = NULL, search = "grid") {
+  ## To use grid search:
+  if(search == "grid") {
+    out <- expand.grid(k = 1:len,
+                       algorithm = c("kd_tree", "cover_tree", "brute"))
+                       
+  } else {
+    ## For random search, define ranges for the parameters then
+    ## generate random values for them
+    out <- data.frame(k = sample(c(1:20),20,replace=T),
+                      algorithm = sample(c("kd_tree", "cover_tree", "brute"),20,replace=T))
+  }
+out
+}
+knn.reg.caret$grid <- knn.reg.Grid
+# ------------------- Thu Feb 08 22:47:25 2018 --------------------#
+#TODO http://topepo.github.io/caret/using-your-own-model-in-train.html
+
+hyperknn <- train(price ~ ., data=scaledData$Original, method='kknn', trControl = trCtrl, tuneGrid = data.frame(kmax = rep(c(3:20),10),
+           distance = rep(rep(1,18),10),
+           kernel = c(rep('rectangular',18),rep("triangular",18), rep("epanechnikov",18),rep("biweight",18),              rep("triweight",18),rep("cos",18), rep("inv",18), rep("gaussian",18), rep("rank",18), rep("optimal",18)),stringsAsFactors = F
+           ))
+hyperknnPred <- predict(hyperknn,newdata = glassTest)
+confusionMatrix(hyperknnPred,glassTest$Type)
+knn.reg()
+```
+
 </p>
 ## 15
 <div class='q'>(10 pts) Inspect the <a href="/uploads/8/6/5/9/8659576/occupancyratestimeseries.csv">data set of occupancy rates</a> for a series of time periods. Which forecasting method is most appropriate to use for forecast the next time period? Calculate a forecast for the next time period with a 95% prediction interval. Comment on the bias of your forecasting model.
