@@ -243,7 +243,7 @@ ngbrs[i] <- sum(sqrt({p-uRow}^2)) # Calculate the distance with Euclidean
   catPred <- Mode(train[k.closest,cat]) #Find Mode of votes as predicted category
   return(catPred)
 }
-catPred <- apply(numU, 1, FUN=Euclid, nms=nms, k=k) # Apply to rows of unknown to get a vector of predicted categories
+catPred <- apply(numU, 1, FUN=Euclid, nms=nms, k=10) # Apply to rows of unknown to get a vector of predicted categories
 return(catPred)
 }
 # ------------------- Thu Feb 08 16:37:40 2018 --------------------#
@@ -276,8 +276,7 @@ After looking at the code for class::knn using fix(), I am pretty clueless as to
 ```{r '9'}
 predTest <- class::knn(scaledData$Original,glassTest,scaledData$Original$Type,k=14)
 library(caret)
-(cM <- confusionMatrix(predTest,glassTest$Type))
-
+confusionMatrix(predTest,glassTest$Type)
 ```
 The percentage of correct classifications is 95%.
 </p>
@@ -287,19 +286,8 @@ The percentage of correct classifications is 95%.
 </div>
 <p class='a'>
 ```{r '10'}
-predictions <- vector("list",10)
-names(predictions) <- 5:14
-for(i in 5:14){
-  print(i)
-  Pred <- gknn('Type', scaledData$Original, glassTest, k=i)
-  predictions[[as.character(i)]] <- list(Pred=Pred,Acc=confusionMatrix(Pred,glassTest$Type)$overall[['Accuracy']])
-}
-# ------------------- Thu Feb 08 17:57:52 2018 --------------------#
-# Render an ugly plot :D
 
-plot(x=names(predictions),y=lapply( predictions , "[[" , "Acc" ),main="k v Accuracy",xlab="k-Value",ylab="Accuracy")
 ```
-The lowest k-value of 5 has the best accuracy with ~81%.
 </p>
 
 ## 11
