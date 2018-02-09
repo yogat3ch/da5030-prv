@@ -60,8 +60,7 @@ names <- c("1. Id number: 1 to 214",
       -- 6 tableware
       -- 7 ")
 Names <- names %>% str_extract_all("(?<=(?:\\d\\d?\\.\\s))\\w{1,4}\\s?\\w+") %>% unlist()
-#fix(Names)
-colnames(glass) <- Names
+colnames(glass) <- c("Id number","RI","Na","Mg","Al","Si","K","Ca","Ba","Fe","Type")
 rownames(glass) <- glass$`Id number`
 glass <- glass[, -1]
 glass$Type <- as.factor(glass$Type)
@@ -126,7 +125,9 @@ glass[, c(1,2)] <- apply(glass[, c(1,2)],2,FUN="normalize")
 ```{r '5'}
 # ------------------- Wed Feb 07 20:49:50 2018 --------------------#
 #Normalize using z-score
-glass[, seq(3, {length(glass) - 1})] <- apply(glass[, seq(3, {length(glass) - 1})], 2, FUN="scale")
+numCols <- sapply(glass,FUN=is.numeric,simplify=T)
+numCols[1:2] <- F
+glass[, numCols] <- apply(glass[, numCols], 2, FUN="scale")
 ```
 </p>
 
@@ -317,12 +318,11 @@ plot(x=names(predictions),y={1 - lapply( predictions , "[[" , "Acc" ) %>% unlist
 </div>
 <p class='a'>
 ```{r '12'}
-getModelInfo("kknn")
 trainIndex <- createDataPartition(scaledData$Original$Type,times = 5,p = .8)
 trCtrl <- caret::trainControl(method="repeatedcv", number=10, repeats = 4,index = trainIndex)
-hyperknn <- train(Type ~ ., data=scaledData$Original, method='kknn', trControl = trCtrl, tuneGrid = data.frame(kmax = rep(c(3:20),10),
-           distance = rep(rep(1,18),10),
-           kernel = c(rep('rectangular',18),rep("triangular",18), rep("epanechnikov",18),rep("biweight",18),              rep("triweight",18),rep("cos",18), rep("inv",18), rep("gaussian",18), rep("rank",18), rep("optimal",18)),stringsAsFactors = F
+hyperknn <- train(Type ~ ., data=scaledData$Original, method='kknn', trControl = trCtrl, tuneGrid = expand.grid(kmax = c(3:20),
+           distance = c(1:3),
+           kernel = c('rectangular',"triangular", "epanechnikov","biweight",              "triweight","cos", "inv", "gaussian", "rank", "optimal"),stringsAsFactors = F
            ))
 hyperknnPred <- predict(hyperknn,newdata = glassTest)
 confusionMatrix(hyperknnPred,glassTest$Type)
@@ -352,7 +352,7 @@ str(hdata)
 dim(hdata)[1] # Cases
 dim(hdata)[2] # Features
 ```
-A broker can order an appraisal of a home in question that reports the same features as the ones found in this dataset. kNN can then be used to find the nearest neighbors (not literally in the context of homes :D) based on the features of the home in question. Provided that King's county has homogeneity in external features such as accessibility to amenities, schools, geography, crime rate, solar potential etc in all areas, the price of the nearest neighbors can be used to predict the price of the house in question. In this instance, we are attempting to predict a continuous value, namely price, so knn.reg (regression) is suited for this case.
+A broker can order an appraisal of a home in question that reports the same features as the ones found in this dataset. kNN can then be used to find the nearest neighbors (not literally in the context of homes :D) based on the features of the home in question. Provided that King's county has homogeneity in external features such as accessibility to amenities, schools, geography, crime rate, solar potential etc in all areas, the price of the nearest neighbors can be used to predict the price of the house in question. In this instance, we are attempting to predict a continuous value, namely price, so a knn regression is suited for this case. My guess would be that it takes the mean of it's k-nearest neighbors, but this question deserves further exploration.
 ```{r '14 cont'}
 # ------------------- Thu Feb 08 21:24:57 2018 --------------------#
 #Use knn to select nearest neighbors for imaginary home
@@ -362,51 +362,23 @@ u <- sapply(hdata,sample,size=1) # Sample the data at random to create dummy dat
 loc <- names(u)[18:19] # Lat & long don't need normalization, and since we're assuming that location doesn't matter for this county, they can be removed
 facts <- names(u)[c(4,5,8:12,17)] #Factors, but can be treated as numeric
  
-ud <- u[-c(1:2,14,15,17)] # Remove id, date, zipcode, lat, long
-od <- hdata[-c(1:2,14,15,17)]
+ud <- u[-c(1:3,17:19)] # Remove id, date, price, zipcode, lat, long
+od <- hdata[-c(1:3,17:19)]
 
 toScale <- rbind(ud,od) # Combine the two sets for setting classes and normalizing
 toScale <- apply(toScale,2,scale) # Scale
-ud <- as.data.frame(toScale[1, ]) #Unknown
-od <- as.data.frame(toScale[-1, ]) #Original Data
+ud <- matrix(data=toScale[1, ],byrow=T,nrow=1,dimnames = list(c("u"),names(toScale[1, ]))) #Unknown
+od <- as.data.frame(toScale[-1, ])
+od <- as.data.frame(cbind(price=hdata$price,od)) #Original Data with price added back in
 trainIndex <- createDataPartition(od$price,times = 5,p = .8)
 trCtrl <- caret::trainControl(method="repeatedcv", number=10, repeats = 4,index = trainIndex)
-
-#Create new method for Caret to use knn.reg
-knn.reg.caret <- list(type = "Regression",
-              library = "FNN",
-              loop = NULL)
-prm <- data.frame(parameter = c("k", "algorithm"),
-                  class = c("numeric", "character"),
-                  label = c("k-Neighbors", "Algorithm"))
-knn.reg.caret$prm <- prm
-knn.reg.Grid <- function(x, y, len = NULL, search = "grid") {
-  ## To use grid search:
-  if(search == "grid") {
-    out <- expand.grid(k = 1:len,
-                       algorithm = c("kd_tree", "cover_tree", "brute"))
-                       
-  } else {
-    ## For random search, define ranges for the parameters then
-    ## generate random values for them
-    out <- data.frame(k = sample(c(1:20),20,replace=T),
-                      algorithm = sample(c("kd_tree", "cover_tree", "brute"),20,replace=T))
-  }
-out
-}
-knn.reg.caret$grid <- knn.reg.Grid
-# ------------------- Thu Feb 08 22:47:25 2018 --------------------#
-#TODO http://topepo.github.io/caret/using-your-own-model-in-train.html
-
-hyperknn <- train(price ~ ., data=scaledData$Original, method='kknn', trControl = trCtrl, tuneGrid = data.frame(kmax = rep(c(3:20),10),
-           distance = rep(rep(1,18),10),
-           kernel = c(rep('rectangular',18),rep("triangular",18), rep("epanechnikov",18),rep("biweight",18),              rep("triweight",18),rep("cos",18), rep("inv",18), rep("gaussian",18), rep("rank",18), rep("optimal",18)),stringsAsFactors = F
-           ))
-hyperknnPred <- predict(hyperknn,newdata = glassTest)
-confusionMatrix(hyperknnPred,glassTest$Type)
-knn.reg()
+simpleknn <- train(price ~ ., data=od, method='knn', trControl = trCtrl, tuneLength = 20)
+simpleknnPred <- predict(simpleknn,newdata = ud)
+# ------------------- Fri Feb 09 08:50:41 2018 --------------------#
+# Using the best performing knn algorithm from above that is also capable of regression
+simpleknnPred
 ```
-
+The knn regression algorithm predicts a price of $484,530.80 based on our randomly sampled unknown data. To test the accuracy of this prediction, under the assumption that the values of our unknown represent the actual features of a home, we would wait until the house (or one of it's nearest neighbors) is sold. This will inform us as to the degree of accuracy of the prediction.
 </p>
 ## 15
 <div class='q'>(10 pts) Inspect the <a href="/uploads/8/6/5/9/8659576/occupancyratestimeseries.csv">data set of occupancy rates</a> for a series of time periods. Which forecasting method is most appropriate to use for forecast the next time period? Calculate a forecast for the next time period with a 95% prediction interval. Comment on the bias of your forecasting model.
