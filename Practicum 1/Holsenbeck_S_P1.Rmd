@@ -385,4 +385,109 @@ The knn regression algorithm predicts a price of $484,530.80 based on our random
 </div>
 <p class='a'>
 ```{r '15'}
+# ------------------- Fri Feb 09 15:22:29 2018 --------------------#
+#Prediction using lm
+ots <- read.csv("http://da5030.weebly.com/uploads/8/6/5/9/8659576/occupancyratestimeseries.csv")
+any(is.na(ots))
+summary(ots)
+shapiro.test(ots$OccupancyRate)
+# Data does not fit a normal distribution, therefore does not satisfy requirements of linear regression
+# ------------------- Fri Feb 09 15:39:00 2018 --------------------#
+# We could use any of the non-parametric methods such as SMA, WMA, or ES, as well as kNN because it also makes no assumptions of the underlying data. First let's explore with a plot.
+plot(ots)
+# The data appears to be an oscillatory pattern
+lmots <- lm(OccupancyRate ~ Period, data=ots)
+ggplot(data = ots,mapping=aes(x=Period,y=OccupancyRate))+
+  geom_point()+
+geom_line(aes(y=predict(lmots)))+
+  geom_smooth()+
+  geom_line()
+# ------------------- Fri Feb 09 16:28:36 2018 --------------------#
+# Definitely an oscillatory pattern present in the data.
+glmotsfit <- glm(formula=OccupancyRate~Period,data=ots,family=quasibinomial(link = "logit"))
+s <- {35+12*cos({ots$Period/1.71}-1.75)}
+c <- 1000*cos(20*ots$Period)
+glmots <- glm(OccupancyRate ~ s, data=ots, family = gaussian)
+ggplot(data = ots,mapping=aes(x=Period,y=OccupancyRate))+
+  geom_point()+
+geom_line(aes(y=s))+
+  geom_smooth()
+
+# ------------------- Fri Feb 09 17:37:27 2018 --------------------#
+#I was unable to find a package so I manually tweaked the sin function stored in variable s to come up with the above.
+# ------------------- Fri Feb 09 17:45:32 2018 --------------------#
+# According to this SO post https://stats.stackexchange.com/questions/60994/fit-a-sinusoidal-term-to-data, we might be able to construct a linear model as follows:
+
+specOcc <- spectrum(ots$OccupancyRate)  
+perOcc <- 1/specOcc$freq[specOcc$spec==max(specOcc$spec)]
+lmsinots <- lm(OccupancyRate ~ sin(2*pi/perOcc*ots$Period)+cos(2*pi/perOcc*ots$Period),data=ots)
+ggplot(data = ots,mapping=aes(x=Period,y=OccupancyRate))+
+  geom_point()+
+geom_line(aes(y=predict(lmsinots)),color="blue")+
+  geom_smooth()
+# ------------------- Fri Feb 09 17:48:53 2018 --------------------#
+# This model comes very close to a predictive linear model, though the maxima are higher than the sin curve covers. If we could add to the model the data from smoothing line, it may be possible to predict the data almost exactly.
+#According to this SO post, there could be a way to do this https://stackoverflow.com/questions/9789871/method-to-extract-stat-smooth-line-fit
+#Trying this below, we have the smoothing line data. Let's try adding that to the lm
+ggplot(data = ots,mapping=aes(x=Period,y=OccupancyRate))+
+  geom_point()+
+geom_line(aes(y=predict(lmsinots)),color="blue")+
+  geom_smooth()+
+stat_smooth(aes(outfit=fit<<-..y..))
+# ------------------- Fri Feb 09 17:53:49 2018 --------------------#
+# Adding the smoothing line to the linear model
+# 2018-02-09 1755 This creates an error because the fit line data does not have as many values as the data. We need to smooth the data out to make it longer to fit our 166 values. We can do so with the loop below
+newfit <- vector()
+for (i in seq_along(fit)) {
+  newfit <- append(newfit,c(fit[i],mean(c(fit[i],fit[i + 1]))))
+}
+# We are still short by 6 Values so to add 6 values evenly spaced
+for (i in seq_along(round(c(1:6)*160/6))) {
+  newfit <- append(newfit,mean(c(newfit[i],newfit[i + 1])),after=i)
+}
+# newfit is now long enough to add to the model
+lmsinfitots <- lm(OccupancyRate ~  sin(2*pi/perOcc*ots$Period)+cos(2*pi/perOcc*ots$Period)+newfit,data=ots)
+newdata <- {sin(2*pi/perOcc*ots$Period)+cos(2*pi/perOcc*ots$Period)+newfit}
+ggplot(data = ots,mapping=aes(x=Period,y=OccupancyRate))+
+  geom_point()+
+geom_line(aes(y=predict(lmsinfitots,newdata = as.data.frame(newdata))),color="blue")+
+  geom_smooth()
+# ------------------- Fri Feb 09 18:23:10 2018 --------------------#
+# It looks like that did nothing to the model, my reasoning here was incorrect. What actually would need to happen is to boost the highest points of the prediction by the difference between the newfit value corresponding to the x value and the newfit minimum.
+lmsinPred <- predict(lmsinfitots,newdata = as.data.frame(newdata))
+lmsinPred[166] <- 32
+sumlmsinfit <- summary(lmsinPred)
+sumNames <- names(summary(lmsinPred))
+names(newfit) <- 1:166
+topQ <- lmsinPred[sumlmsinfit[sumNames[5]] < lmsinPred]
+topQ <- topQ[!is.na(topQ)]
+lmsinPred[sumlmsinfit[sumNames[5]] < lmsinPred] <- topQ+{newfit[names(topQ)] - rep(min(newfit,na.rm=T),length(topQ))}
+ggplot(data = ots,mapping=aes(x=Period,y=OccupancyRate))+
+  geom_point()+
+geom_line(aes(y=lmsinPred),color="blue")+
+  geom_smooth()
+# ------------------- Fri Feb 09 18:44:52 2018 --------------------#
+#That's about as good as it gets. Now as far as a prediction is concerned, maybe we can add our constructed data as a term in the model for prediction purposes?
+lmexactots <- lm(OccupancyRate ~  sin(2*pi/perOcc*ots$Period)+cos(2*pi/perOcc*ots$Period)+lmsinPred,data=ots)
+ggplot(data = ots,mapping=aes(x=Period,y=OccupancyRate))+
+  geom_point()+
+geom_line(aes(y=predict(lmexactots)),color="blue")+
+  geom_smooth()
+# ------------------- Fri Feb 09 19:03:12 2018 --------------------#
+# This is marginally closer, but fails to incorporate the extension of the value in the top quartile. A combination of the linear model and a decision tree would most accurately predict the data. The decision tree would 
+
+ggplot(data = ots,mapping=aes(x=Period,y=OccupancyRate))+
+  geom_point()+
+geom_line(aes(y=predict(loess(OccupancyRate~Period,data=ots))),color="blue")
+# loess is the function that geom_smooth uses
+# Essentially the model needs to determine if the values of it's sin wave function are in the upper quartile, and if so, automatically add the difference between it's corresponding loess smoothing value and the loess minima. 
 ```
+```{r 'HoltWinters Forecast'}
+# ------------------- Fri Feb 09 19:28:51 2018 --------------------#
+# According to this site http://a-little-book-of-r-for-time-series.readthedocs.io/en/latest/src/timeseries.html#holt-s-exponential-smoothing.
+
+plot(HoltWinters(ts(data=ots$OccupancyRate,start=min(ots$Period),end=max(ots$Period)), gamma=FALSE))
+predict(HoltWinters(ts(data=ots$OccupancyRate,start=min(ots$Period),end=max(ots$Period)), gamma=FALSE))
+```
+HoltsWinters seems to be ideal for this type of data as it has a "seasonal" flux. This is the most accurate model that allows for forecast predictions to be made. While we were able to create a fairly accurate linear model using sin and cos interaction terms with the addition of the difference in loess smoothing values to the prediction values lying in the upper quartile, I am unaware of a way to made this into a model with which a prediction can be made. 
+</p>
