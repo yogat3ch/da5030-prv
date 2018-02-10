@@ -25,7 +25,8 @@ require("tidyverse")
 require("dplyr")
 require("htmltools")
 require("rvest")
-require(stringr)
+require("stringr")
+require("caret")
 ```
 ```{r 'Assignment',eval=F}
 #Set Assignment html below
@@ -484,10 +485,22 @@ geom_line(aes(y=predict(loess(OccupancyRate~Period,data=ots))),color="blue")
 ```
 ```{r 'HoltWinters Forecast'}
 # ------------------- Fri Feb 09 19:28:51 2018 --------------------#
-# According to this site http://a-little-book-of-r-for-time-series.readthedocs.io/en/latest/src/timeseries.html#holt-s-exponential-smoothing.
-
-plot(HoltWinters(ts(data=ots$OccupancyRate,start=min(ots$Period),end=max(ots$Period)), gamma=FALSE))
-predict(HoltWinters(ts(data=ots$OccupancyRate,start=min(ots$Period),end=max(ots$Period)), gamma=FALSE))
+# http://a-little-book-of-r-for-time-series.readthedocs.io/en/latest/src/timeseries.html#holt-s-exponential-smoothing.
+ots <- ts(data=ots$OccupancyRate,start=min(ots$Period),end=max(ots$Period))
+(hwaots <- HoltWinters(ots, gamma=FALSE,seasonal="additive"))
+(hwmots <- HoltWinters(ots, gamma=FALSE,seasonal="multiplicative"))
+fhwa <- fitted(hwaots)
+fhwm <- fitted(hwmots)
+dfhwa <- data.frame(OTS=as.numeric(ots[3:166]),Pred=as.numeric(fhwa[,1]),stringsAsFactors = F)
+dfhwm <- data.frame(OTS=as.numeric(ots[3:166]),Pred=as.numeric(fhwm[,1]),stringsAsFactors = F)
+MAE(dfhwa$OTS,dfhwa$Pred)
+MAE(dfhwm$OTS,dfhwm$Pred)
+# ------------------- Sat Feb 10 13:42:31 2018 --------------------#
+# Both models have identical error, and therefore accuracy
+predict(hwaots)
+predict(hwmots)
+# And predictions, as expected
 ```
-HoltsWinters seems to be ideal for this type of data as it has a "seasonal" flux. This is the most accurate model that allows for forecast predictions to be made. While we were able to create a fairly accurate linear model using sin and cos interaction terms with the addition of the difference in loess smoothing values to the prediction values lying in the upper quartile, I am unaware of a way to made this into a model with which a prediction can be made. 
+HoltsWinters is a weighted exponential smoothing type forecastexceptionally useful for data that has a "seasonal" trend pattern. An explanation of the HoltWinters conceptual basis and statistical foundation can be found <a href="https://www.otexts.org/fpp/7/5">Here</a>.
+Indicated by the graph, this is the most accurate model that allows for forecast predictions to be made. While we were able to create a fairly accurate linear model using sin and cos interaction terms with the addition of the difference in loess smoothing values to the prediction values lying in the upper quartile, I am unaware of a way to made this into a model with which a prediction can be made. The bias of the model is that it assumes a season trend pattern. Therefore the model will assume the repetition of the pattern currently evident in the data. If for some reason Occupancy rate was influenced by an external factor that interrupted the regularity of the season flux in this dataset, the model will produce inaccurate forecasts..
 </p>
