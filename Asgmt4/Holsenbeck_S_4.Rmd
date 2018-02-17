@@ -1,0 +1,202 @@
+---
+title: "Holsenbeck_S_1"
+author: "Stephen Synchronicity"
+date: '`r format(Sys.time(), "%Y-%m-%d")`'
+always_allow_html: yes
+header-includes:
+   - \usepackage{dcolumn}
+output: 
+  html_document: 
+    self_contained: yes
+    css: C:\Users\Stephen\Documents\R\win-library\3.4\neuhwk\rmarkdown\templates\DA5030\resources\bootstrap.min.css
+    highlight: zenburn
+    keep_md: no
+    theme: spacelab
+    toc: yes
+    toc_float: true
+---
+```{r setup, include=FALSE}
+# Knitr Options
+knitr::opts_chunk$set(echo = TRUE, message=FALSE,warning=FALSE,cache=TRUE, fig.align='center', fig.height=3.5, fig.width=5, tidy=TRUE, tidy.opts=list(width.cutoff=80))
+library(knitr)
+knit_print.data.frame = function(x, ...) {
+    res = paste(c("", "", kable(x)), collapse = "\n")
+    asis_output(res)
+}
+# Attach dependencies
+rmarkdown::html_dependency_jquery()
+rmarkdown::html_dependency_bootstrap("spacelab")
+rmarkdown::html_dependency_jqueryui()
+# Make reproducible
+set.seed(1)
+# Load packages
+require("tidyverse")
+require("dplyr")
+require("htmltools")
+require("rvest")
+require("readr")
+```
+```{r 'Assignment',eval=T,results='asis'}
+#Set Assignment html below
+Q <- read_html("https://da5030.weebly.com/assignment-4.html") %>% html_nodes(xpath="//div[contains(@class,'paragraph')]/ol/li")
+for (i in seq_along(Q)) {
+  Q[i] <- Q[i]  %>% gsub("<li>",paste("## ",i,"\n<div class='q'>",sep=""),.,perl=T) %>% gsub("</li>",paste("\n</div>\n<p class='a'>\n```{r '",i,"'}\n```\n</p>",sep=""),.,perl=T) %>%  str_split("\n")
+}
+sapply(Q, FUN="cat",sep='\n',simplify=T)
+```
+
+## 1
+Build an R Notebook of the SMS message filtering example in the textbook on pages 103 to 123. Show each step and add appropriate documentation. This is the same as Lesson 4.
+</div>
+<p class='a'>
+```{r '1'}
+#SMS data from http://dcomp.sor.ufscar.br/talmeida/smspamcollection/
+#Tiago Agostinho de Almeida and José María Gómez Hidalgo hold the copyright (c) for the SMS Spam Collection v.1.
+# ------------------- Fri Feb 16 20:15:00 2018 --------------------#
+# Load Data
+sms <- read.csv("sms_spam.csv", stringsAsFactors = FALSE)
+# data structure
+str(sms)
+# turn type into a factor
+sms$type <- factor(sms$type, levels=c("spam","ham"))
+# verify factor
+str(sms$type)
+# count frequencies
+table(sms$type) %>% print %>% sapply(FUN=function(x){x/length(sms$type)})
+#load text mining package
+library(tm)
+# Create a volatile (stored in RAM for rapid manipulation) corpus from a vector document source. Parentheses around variable assignment prints result
+(sms.crp <- VCorpus(VectorSource(sms$text)))
+# ------------------- Fri Feb 16 21:35:27 2018 --------------------#
+# Look at individual corpus items
+inspect(sms.crp[1:2])
+# View actual text
+lapply(sms.crp[c(1:5)], as.character)
+# Map the tolower function to the corpus to convert all text to lowercase
+sms.crpClean <- tm_map(sms.crp, content_transformer(tolower))
+# Show the transformation
+as.character(sms.crp[[1]])
+as.character(sms.crpClean[[1]])
+# View all transformation types
+getTransformations()
+# remove numbers
+sms.crpClean <- tm_map(sms.crpClean, removeNumbers) 
+# remove stop words: removeWords removes any list of words, stopwords genereates vector of stopwords (defaults to english stopwords.)
+sms.crpClean <- tm_map(sms.crpClean, removeWords, stopwords()) 
+# remove punctuation, but we would rather replace it first:
+# sms.crpClean <- tm_map(sms.crpClean, removePunctuation) 
+replacePunctuation <- function(x) { (gsub("[[:punct:]]+", " ", x)) }
+# Replace punctuation with a space
+sms.crpClean <- tm_map(sms.crpClean, content_transformer(replacePunctuation))
+# If any additional punctuation characters were not replaced by this function, remove them
+sms.crpClean <- tm_map(sms.crpClean, removePunctuation)
+# Verify it worked
+as.character(sms.crpClean[[1]])
+
+# ------------------- Fri Feb 16 21:57:14 2018 --------------------#
+# Demo snowballc
+library(SnowballC)
+# strips endings such that only rootword remains
+wordStem(c("learn", "learned", "learning", "learns")) 
+# map stemDocument to the corpus 
+sms.crpClean <- tm_map(sms.crpClean, stemDocument) 
+# Test stripWhitespace
+tm_map(sms.crpClean,stripWhitespace)[[1]] 
+# Map it to corpus
+sms.crpClean <- tm_map(sms.crpClean, stripWhitespace) 
+# Ensure all transformations worked
+lapply(sms.crp[1:3], as.character)
+lapply(sms.crpClean[1:3], as.character)
+# ------------------- Fri Feb 16 22:07:07 2018 --------------------#
+# Document Term Matrix
+# create a document-term sparse matrix
+sms.dtm <- DocumentTermMatrix(sms.crpClean)
+# throwing an error Error in .tolower(txt) : invalid input 'Ã«â€' in 'utf8towcs'
+# it appears that some invalid UTF8 characters are in the corpus
+# We will try to remove them
+removeSpecial <- function(x){gsub("Ã|«|â|€"," ",x)}
+sms.crpClean <- tm_map(sms.crpClean, content_transformer(removeSpecial))
+# if this created any extra whitespace remove it
+sms.crpClean <- tm_map(sms.crpClean, stripWhitespace) 
+# Try again
+sms.dtm <- DocumentTermMatrix(sms.crpClean)
+# Still error. This post may help: https://stackoverflow.com/questions/9637278/r-tm-package-invalid-input-in-utf8towcs
+sms.crpClean <- tm_map(sms.crpClean, content_transformer(function(x) iconv(enc2utf8(x), sub = "byte")))
+sms.dtm <- DocumentTermMatrix(sms.crpClean)
+# Seems to have worked! stripWhitespace was run again but is not copied here.
+# TODO(finish)
+
+# alternative solution: create a document-term sparse matrix directly from the SMS corpus
+sms_dtm2 <- DocumentTermMatrix(sms.crp, control = list(
+  tolower = TRUE,
+  removeNumbers = TRUE,
+  stopwords = TRUE,
+  removePunctuation = TRUE,
+  stemming = TRUE
+))
+```
+
+</p>
+
+## 2
+Install the requisite packages to execute the following code that classifies the built-in iris data using Naive Bayes. Build an R Notebook and explain in detail what each step does. Be sure to look up each function to understand how it is used.
+
+```{r '2 Load'}
+library(klaR)
+data(iris)
+
+#nrow(iris)
+#summary(iris)
+head(iris)
+
+# identify indexes to be in testing dataset
+# every index of 5th, 10th, 15th .. will be the testing dataset
+# the rest are training dataset
+testidx <- which(1:length(iris[, 1]) %% 5 == 0)
+
+# separate into training and testing datasets
+iristrain <- iris[-testidx,]
+iristest <- iris[testidx,]
+
+# apply Naive Bayes
+nbmodel <- NaiveBayes(Species~., data=iristrain)
+
+# check the accuracy
+prediction <- predict(nbmodel, iristest[,-5])
+table(prediction$class, iristest[,5])
+```
+
+
+<p class='a'>
+```{r '2'}
+```
+</p>
+
+### 2a
+<div class="q">How would you make a prediction for a new case with the above package?</div>
+<p class='a'>
+```{r '2a'}
+```
+</p>
+
+### 2b
+<div class='q'>b. How does this package deal with numeric features? 
+</div>
+<p class='a'>
+```{r '2b'}
+```
+</p>
+
+### 2c
+<div class="q">c. How does it specify a Laplace estimator?
+</div>
+<p class='a'>
+```{r '2c'}
+```
+</p>
+
+## 3
+<div class='q'>What are Laplace estimators and why are they used in Naive Bayes classification? Provide an example of how they might be used and when. (You do not need to write any code. Instead explain their use in the R Notebook.)
+</div>
+<p class='a'>
+</p>
