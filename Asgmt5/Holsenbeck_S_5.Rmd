@@ -51,6 +51,40 @@ sapply(Q.form, FUN="cat",sep='\n',simplify=T)
 </div>
 <p class='a'>
 ```{r '1'}
+# ------------------- Tue Feb 27 13:45:24 2018 --------------------#
+# Read & explore data
+credit <- read.csv("credit.csv")
+str(credit)
+# There are 21 Variables in our dataset, different from the 17 in the example.
+# Load the example dataset
+creditOrig <- read.csv("credit(1).csv")
+# Find the common attributes
+intersect(names(credit),names(creditOrig))
+# The datasets share 11 variables
+# Find the differing attributes
+setdiff(names(credit),names(creditOrig))
+# There are 10 attributes that are unique in the new dataset
+# ------------------- Tue Feb 27 13:52:54 2018 --------------------#
+# Take a look at feature tables
+sapply(credit[,sapply(credit, is.factor)],table,simplify = T)
+# ------------------- Tue Feb 27 14:00:21 2018 --------------------#
+# Summarize numeric attributes
+sapply(credit[,sapply(credit, is.numeric)],summary,simplify = T)
+table(credit$default)
+# factor(credit$default,levels=c("n"="1","y"="2"),labels = c("n"="1","y"="2"))
+table(credit$dependents)
+# ------------------- Tue Feb 27 14:16:20 2018 --------------------#
+# Create test & Train sets
+set.seed(123)
+train_sample <- sample(1000, 900)
+str(train_sample)
+credit_train <- credit[train_sample, ]
+credit_test  <- credit[-train_sample, ]
+# Ensure we have a roughly striated sampling of the default cases
+prop.table(table(credit_train$default))
+prop.table(table(credit_test$default))
+# caret::createDataPArtition could be used to make the test & train data sets have a nearly exact striated sample across the default attribute
+
 ```
 </p>
 
