@@ -1,0 +1,79 @@
+---
+title: "Holsenbeck_S_1"
+author: "Stephen Synchronicity"
+date: '`r format(Sys.time(), "%Y-%m-%d")`'
+always_allow_html: yes
+header-includes:
+   - \usepackage{dcolumn}
+output: 
+  html_document: 
+    self_contained: yes
+    css: C:\Users\Stephen\Documents\R\win-library\3.4\neuhwk\rmarkdown\templates\DA5030\resources\bootstrap.min.css
+    highlight: zenburn
+    keep_md: no
+    theme: spacelab
+    toc: yes
+    toc_float: true
+---
+```{r setup, include=FALSE}
+# Knitr Options
+knitr::opts_chunk$set(echo = TRUE, message=FALSE,warning=FALSE,cache=TRUE, fig.align='center', fig.height=3.5, fig.width=5, tidy=TRUE, tidy.opts=list(width.cutoff=80))
+library(knitr)
+knit_print.data.frame = function(x, ...) {
+    res = paste(c("", "", kable(x)), collapse = "\n")
+    asis_output(res)
+}
+# Attach dependencies
+rmarkdown::html_dependency_jquery()
+rmarkdown::html_dependency_bootstrap("spacelab")
+rmarkdown::html_dependency_jqueryui()
+# Make reproducible
+set.seed(1)
+# Load packages
+require("tidyverse")
+require("dplyr")
+require("htmltools")
+require("rvest")
+```
+```{r 'Assignment',eval=T,results='asis'}
+#Set Assignment html below
+Q <- read_html("https://da5030.weebly.com/assignment-5.html") %>% html_nodes(xpath="//h2[contains(@class,'wsite-content-title')]/font[contains(@color,'#24678d')]")
+Qtext <- read_html("https://da5030.weebly.com/assignment-5.html") %>% html_nodes(xpath="//h2[contains(@class,'wsite-content-title')]/font[contains(@color,'#24678d')]/parent::h2/following-sibling::div[contains(@class,'paragraph')][1]")
+Q.form <- vector()
+for (i in seq_along(Q)) {
+  Q.form[i] <- Q[i] %>% html_text %>% paste("## ",.,"\n<div class='q'>",sep="") %>% paste(html_text(Qtext[i]),sep="") %>% paste("\n</div>\n<p class='a'>\n```{r '",i,"'}\n```\n</p>\n",sep="") %>%  str_split("\n")
+}
+sapply(Q.form, FUN="cat",sep='\n',simplify=T)
+```
+
+## Problem 1 (25 Pts)
+<div class='q'>Build an R Notebook of the bank loan decision tree example in the textbook on pages 136 to 149. Show each step and add appropriate documentation.
+</div>
+<p class='a'>
+```{r '1'}
+```
+</p>
+
+## Problem 2 (25 Pts)
+<div class='q'>Build and R Notebook of the poisonous mushrooms example using rule learners in the textbook on pages 160 to 168. Show each step and add appropriate documentation.
+</div>
+<p class='a'>
+```{r '2'}
+```
+</p>
+
+## Problem 3 (25 Pts)
+<div class='q'>So far we have explored four different approaches to classification: kNN, Naive Bayes, C5.0 Decision Trees, and RIPPER Rules. Comment on the differences of the algorithms and when each is generally used. Provide examples of when they work well and when they do not work well. Add your comments to your R Notebook. Be specific and explicit; however, no code examples are needed.
+</div>
+<p class='a'>
+```{r '3'}
+```
+</p>
+
+## Problem 4 (25 Pts)
+<div class='q'>Much of our focus so far has been on building a single model that is most accurate. In practice, data scientists often construct multiple models and then combine them into a single prediction model. This is referred to as a model ensemble. Two common techniques for assembling such models are boosting and bagging. Do some research and define what model ensembles are, why they are important, and how boosting and bagging function in the construction of assemble models. Be detailed and provide references to your research. You can use this excerpt from Kelleher, MacNamee, and D'Arcy, Fundamentals of Machine Learning for Predictive Data Analytics as a starting point. This book is an excellent resource for those who want to dig deeper into data mining and machine learning.
+</div>
+<p class='a'>
+```{r '4'}
+```
+</p>
