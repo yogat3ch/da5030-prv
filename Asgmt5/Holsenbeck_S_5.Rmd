@@ -134,10 +134,35 @@ caret::confusionMatrix(credit_predcost,credit_test$default)$table[1,2]
 </p>
 
 ## Problem 2 (25 Pts)
-<div class='q'>Build and R Notebook of the poisonous mushrooms example using rule learners in the textbook on pages 160 to 168. Show each step and add appropriate documentation.
+<div class='q'>Build an R Notebook of the poisonous mushrooms example using rule learners in the textbook on pages 160 to 168. Show each step and add appropriate documentation.
 </div>
 <p class='a'>
 ```{r '2'}
+# ------------------- Tue Feb 27 17:26:24 2018 --------------------#
+# Load data and examine it
+mushrooms <- read.csv("mushrooms.csv", stringsAsFactors = TRUE)
+str(mushrooms)
+# drop the veil_type feature
+mushrooms$veil_type <- NULL
+# examine the class distribution
+table(mushrooms$type)
+prop.table(table(mushrooms$type))
+# ------------------- Tue Feb 27 17:34:11 2018 --------------------#
+# Create a model using a single rule
+library(rJava)
+library(RWeka)
+# train OneR() on the data
+levels(mushrooms$odor)
+fnames <- c('a'='anise','c'='creosote','f'='foul','l'='almond','m'='musty','n'='none','p'='pungent','s'='spicy','y'='fishy') #as a guide
+(mushroom_1R <- RWeka::OneR(type ~ ., data = mushrooms))
+# Looks like one should sniff a mushroom before eating it :D
+summary(mushroom_1R)
+# Accurate nearly 99% of the time, but that means that there's a few dead mycophiles if the sole criteria used for edibility is odor.
+# ------------------- Tue Feb 27 18:35:58 2018 --------------------#
+# Now using ripper
+(mushroom_JRip <- RWeka::JRip(type ~ ., data = mushrooms))
+summary(mushroom_JRip)
+# Using 9 rules, all mushrooms can be classified. The book provides more descriptive rules that a mycophile might be able to use. The dataset used here has had all factor values reduced to a single letter which probably improves computational speed but reduces the legibility of the rules.
 ```
 </p>
 
@@ -145,8 +170,7 @@ caret::confusionMatrix(credit_predcost,credit_test$default)$table[1,2]
 <div class='q'>So far we have explored four different approaches to classification: kNN, Naive Bayes, C5.0 Decision Trees, and RIPPER Rules. Comment on the differences of the algorithms and when each is generally used. Provide examples of when they work well and when they do not work well. Add your comments to your R Notebook. Be specific and explicit; however, no code examples are needed.
 </div>
 <p class='a'>
-```{r '3'}
-```
+Decision trees and RIPPER are adapted for situations where the decision making process must be transparent. RIPPER will re-evaluate cuts where a decision tree will not, which can add to computational load. Neither algorithm is particularly suited or data that has the majority of attributes as numeric.
 </p>
 
 ## Problem 4 (25 Pts)
