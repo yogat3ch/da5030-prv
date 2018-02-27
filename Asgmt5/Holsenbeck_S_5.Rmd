@@ -71,7 +71,8 @@ sapply(credit[,sapply(credit, is.factor)],table,simplify = T)
 # Summarize numeric attributes
 sapply(credit[,sapply(credit, is.numeric)],summary,simplify = T)
 table(credit$default)
-# factor(credit$default,levels=c("n"="1","y"="2"),labels = c("n"="1","y"="2"))
+credit$default <- factor(credit$default,levels=c("n"="1","y"="2"),labels = c("n","y"))
+levels(credit$default)
 table(credit$dependents)
 # ------------------- Tue Feb 27 14:16:20 2018 --------------------#
 # Create test & Train sets
@@ -84,7 +85,51 @@ credit_test  <- credit[-train_sample, ]
 prop.table(table(credit_train$default))
 prop.table(table(credit_test$default))
 # caret::createDataPArtition could be used to make the test & train data sets have a nearly exact striated sample across the default attribute
+# ------------------- Tue Feb 27 14:53:19 2018 --------------------#
+# Load the library and build a decision tree
+library(C50)
+(credit_model <- C5.0(credit_train %>% select(-default), credit_train$default))
+# View the decision tree
+summary(credit_model)
+# It looks like the model is 85% accurate
+# ------------------- Tue Feb 27 15:11:46 2018 --------------------#
+# Evaluate model performance
+credit_pred <- predict(credit_model, credit_test)
+caret::confusionMatrix(credit_pred,credit_test$default)
+# In practice with the test set, the accuracy is 74%. The model made 19 type 1 errors misclassifying actual defaults, which could be costly when it comes to loans. 
+# ------------------- Tue Feb 27 15:21:12 2018 --------------------#
+# Improve the model by adding more trials for boosting purposes
+(credit_model10 <- C5.0(credit_train %>% select(-default), credit_train$default,trials = 10))
+# View the decision tree accuracy table minus all the decision tree output
+summary(credit_model10) %>% .[['output']] %>% str_split(regex("\\n(?=Evaluation)",T),n=2) %>% unlist %>% .[2] %>% cat(sep="\n")
+# summarize, then select the output, split output into two sections on the newline right before it starts the evaluation table, unlist the str_split list output, select the 2nd section IE everything after the split, use cat to print it respecting the newline seperators
+# Evaluate model performance
+credit_pred10 <- predict(credit_model10, credit_test)
+caret::confusionMatrix(credit_pred10,credit_test$default)
+# The accuracy improved by ~2% while the number of type 1 errors improved by 2.
+# ------------------- Tue Feb 27 15:55:03 2018 --------------------#
+# Building a cost matrix that weights false negatives regarding loan defaults as more costly, thus attempting to minimize the rate of these cases.
+# Create a list of dimensions that mirrors a confusion matrix
+matrix_dimensions <- list(c("n", "y"), c("n", "y"))
+# Add the names
+names(matrix_dimensions) <- c("predicted", "actual")
+# Verify
+matrix_dimensions
 
+# build the matrix with no penalty for accurate predictions, 1x penalty for false positives (predicting applicants default, when they don't), and a 4x penalty for false negatives (predicting applicants don't default when they actually do).
+(error_cost <- matrix(c(0, 1, 4, 0), nrow = 2, dimnames = matrix_dimensions))
+# Using the costs in the build, differing from the book we're going to also include 10 trials.
+(credit_cost <- C5.0(credit_train %>% select(-default), credit_train$default,trials = 10,costs=error_cost))
+# View the decision tree accuracy table minus all the decision tree output
+summary(credit_cost) %>% .[['output']] %>% str_split(regex("\\n(?=Evaluation)",T),n=2) %>% unlist %>% .[2] %>% cat(sep="\n")
+credit_predcost <- predict(credit_cost, credit_test)
+caret::confusionMatrix(credit_predcost,credit_test$default)
+# To clearly compare the models
+caret::confusionMatrix(credit_pred,credit_test$default)$table[1,2]
+caret::confusionMatrix(credit_pred10,credit_test$default)$table[1,2]
+caret::confusionMatrix(credit_predcost,credit_test$default)$table[1,2]
+
+# Fail, the cost matrix did not create better metrics related to the false negative (type 1 error) rate. 
 ```
 </p>
 
