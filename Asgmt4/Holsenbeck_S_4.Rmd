@@ -1,19 +1,19 @@
 ---
-title: "Holsenbeck_S_1"
+title: "Holsenbeck_S_4"
 author: "Stephen Synchronicity"
-date: '`r format(Sys.time(), "%Y-%m-%d")`'
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  pdf_document: default
+  highlight: zenburn
+  html_document:
+    df_print: paged
+  keep_md: no
+  css: C:\Users\Stephen\Documents\R\win-library\3.4\neuhwk\rmarkdown\templates\DA5030\resources\bootstrap.min.css
+  self_contained: yes
+  theme: spacelab
+  toc: no
+header-includes: \usepackage{dcolumn}
 always_allow_html: yes
-header-includes:
-   - \usepackage{dcolumn}
-output: 
-  html_document: 
-    self_contained: yes
-    css: C:\Users\Stephen\Documents\R\win-library\3.4\neuhwk\rmarkdown\templates\DA5030\resources\bootstrap.min.css
-    highlight: zenburn
-    keep_md: no
-    theme: spacelab
-    toc: yes
-    toc_float: true
 ---
 ```{r setup, include=FALSE}
 # Knitr Options
@@ -36,7 +36,7 @@ require("htmltools")
 require("rvest")
 require("readr")
 ```
-```{r 'Assignment',eval=T,results='asis'}
+```{r 'Assignment',eval=F,results='asis'}
 #Set Assignment html below
 Q <- read_html("https://da5030.weebly.com/assignment-4.html") %>% html_nodes(xpath="//div[contains(@class,'paragraph')]/ol/li")
 for (i in seq_along(Q)) {
@@ -110,30 +110,129 @@ lapply(sms.crpClean[1:3], as.character)
 # ------------------- Fri Feb 16 22:07:07 2018 --------------------#
 # Document Term Matrix
 # create a document-term sparse matrix
-sms.dtm <- DocumentTermMatrix(sms.crpClean)
+# sms.dtm <- DocumentTermMatrix(sms.crpClean)
 # throwing an error Error in .tolower(txt) : invalid input 'Ã«â€' in 'utf8towcs'
 # it appears that some invalid UTF8 characters are in the corpus
 # We will try to remove them
-removeSpecial <- function(x){gsub("Ã|«|â|€"," ",x)}
-sms.crpClean <- tm_map(sms.crpClean, content_transformer(removeSpecial))
+# removeSpecial <- function(x){gsub("Ã|«|â|€"," ",x)}
+# sms.crpClean <- tm_map(sms.crpClean, content_transformer(removeSpecial))
 # if this created any extra whitespace remove it
-sms.crpClean <- tm_map(sms.crpClean, stripWhitespace) 
+# sms.crpClean <- tm_map(sms.crpClean, stripWhitespace) 
 # Try again
-sms.dtm <- DocumentTermMatrix(sms.crpClean)
+# sms.dtm <- DocumentTermMatrix(sms.crpClean)
 # Still error. This post may help: https://stackoverflow.com/questions/9637278/r-tm-package-invalid-input-in-utf8towcs
 sms.crpClean <- tm_map(sms.crpClean, content_transformer(function(x) iconv(enc2utf8(x), sub = "byte")))
 sms.dtm <- DocumentTermMatrix(sms.crpClean)
 # Seems to have worked! stripWhitespace was run again but is not copied here.
-# TODO(finish)
+
 
 # alternative solution: create a document-term sparse matrix directly from the SMS corpus
-sms_dtm2 <- DocumentTermMatrix(sms.crp, control = list(
+sms.dtm2 <- DocumentTermMatrix(sms.crp, control = list(
   tolower = TRUE,
   removeNumbers = TRUE,
   stopwords = TRUE,
   removePunctuation = TRUE,
   stemming = TRUE
 ))
+
+# No errors using this method
+# ------------------- Mon Feb 19 19:11:44 2018 --------------------#
+# Compare the two matrices
+sms.dtm
+sms.dtm2
+# Using the same stopword removal method as with sms.dtm
+sms.dtm2 <- DocumentTermMatrix(sms.crp, control = list(
+  tolower = TRUE,
+  removeNumbers = TRUE,
+  stopwords = function(x) { removeWords(x, stopwords()) },
+  removePunctuation = TRUE,
+  stemming = TRUE
+))
+# Still a difference in the number of entries but I think this might have to do with us manuallyremoving some non-unicode characters with gsub due to the error. Also, the order of pre-processing steps makes a difference as well.
+# ------------------- Mon Feb 19 19:18:35 2018 --------------------#
+# Creating train and test partitions
+# Data is random so it can be split sequentially
+train <- 1:round(nrow(sms.dtm)*.75)
+test <- 1:round(nrow(sms.dtm)*.25)
+sms.trn <- sms.dtm[train, ]
+sms.tst <- sms.dtm[test, ]
+# Create the class verification vectors
+sms.vtrn <- sms[train, ]$type
+sms.vtst <- sms[test, ]$type
+# Check the distribution of classes
+prop.table(table(sms.vtrn))
+prop.table(table(sms.vtst))
+
+# ------------------- Mon Feb 19 19:29:57 2018 --------------------#
+# Word cloud
+library(wordcloud)
+wordcloud::wordcloud(words=sms.crpClean,scale=c(3,.4),min.freq = 50,random.order=F,random.color = F,colors = RColorBrewer::brewer.pal(n=5,name="Dark2") )
+# Subsetting types of SMs
+spam <- subset(sms, type == "spam")
+ham  <- subset(sms, type == "ham")
+# Wordclouds for each type
+wordcloud(spam$text, scale=c(3,.4),min.freq = 50,random.order=F,random.color = F,colors = RColorBrewer::brewer.pal(n=5,name="Set1"))
+wordcloud(ham$text, scale=c(3,.4),min.freq = 50,random.order=F,random.color = F,colors = RColorBrewer::brewer.pal(n=5,name="Set2"))
+# ------------------- Mon Feb 19 20:05:08 2018 --------------------#
+# Find frequent terms
+sms.frq <- findFreqTerms(sms.trn, 5)
+#View(sms.frq)
+# It looks like the first 8 strings are strange characters. 
+sms.frq <- sms.frq[-c(1:8)]
+str(sms.frq)
+# That looks better
+# ------------------- Mon Feb 19 20:20:41 2018 --------------------#
+# Subset the DTM's with the frequent terms
+sms.frq.trn <- sms.trn[ , sms.frq]
+sms.frq.tst <- sms.tst[ , sms.frq]
+# convert counts to a factor
+convert_counts <- function(x) {
+  x <- ifelse(x > 0, "Yes", "No")
+}
+# apply() convert_counts() to columns of train/test data
+sms.trn <- apply(sms.frq.trn, MARGIN = 2, convert_counts)
+sms.tst <- apply(sms.frq.tst, MARGIN = 2, convert_counts)
+# ------------------- Mon Feb 19 20:42:23 2018 --------------------#
+# Model Training
+library("e1071")
+# Train the naiveBayes model
+sms.cls <- naiveBayes(sms.trn, sms.vtrn)
+# Make a prediction about the test set
+sms.pred <- predict(sms.cls,newdata = sms.tst)
+# Evaluate the model, confusionMatrix is preferred to Crosstable
+library("caret")
+confusionMatrix(sms.pred,sms.vtst)
+# The performance is slightly better than the run in the text, but there are 5 messages that are legitimate that were filtered.
+# ------------------- Mon Feb 19 20:58:01 2018 --------------------#
+# Attempt to improve model performance with laplace estimator and train
+trn.ctrl <- trainControl(sms.vtrn,number=3,repeats=2,method="repeatedcv",allowParallel = T)
+```
+Note: The chunk below is set to eval=F because knitting continues to fail after implementing multiple recommended fixes. The chunk runs fine in R.
+```{r '1 - Parallel Train',eval=F}
+# ------------------- Tue Feb 20 21:38:15 2018 --------------------#
+# After troubleshooting a cryptic error:
+# Warning: predictions failed for Fold3.Rep1: fL=1, usekernel=TRUE, adjust=1 Error in log(sapply(1:nattribs, tempfoo)) : 
+# non-numeric argument to mathematical function
+# Warning in In nominalTrainWorkflow(x = x, y = y, wts = weights, info = trainInfo, 
+# There were missing values in resampled performance measures.
+# for nearly an hour. I found this post:
+# https://github.com/topepo/caret/issues/793
+# and implemented the code below but the knitting still fails.
+
+# cnames <- gsub("[^a-zA-Z0-9]","",colnames(sms.trn),perl=T)
+# any(str_detect(cnames,"â|€"))
+# colnames(sms.trn) <- cnames
+options(warn=1)
+
+library(parallel)
+library(doParallel)
+cluster <- makeCluster(detectCores() - 1) # Use 7/8 cores
+registerDoParallel(cluster)
+system.time(nb.model <- train(sms.trn,sms.vtrn,method="nb",trControl=trn.ctrl,tuneGrid=expand.grid(fL=1,usekernel=T,adjust=c(.5,1,2,3))))
+nb.pred <- predict(nb.model,newdata=sms.tst)
+confusionMatrix(nb.pred,sms.vtst)
+stopCluster(cluster); registerDoSEQ();
+# A marginal improvement with the Laplace estimator and repeatedcv, 1 less misclassified ham message.
 ```
 
 </p>
@@ -141,62 +240,79 @@ sms_dtm2 <- DocumentTermMatrix(sms.crp, control = list(
 ## 2
 Install the requisite packages to execute the following code that classifies the built-in iris data using Naive Bayes. Build an R Notebook and explain in detail what each step does. Be sure to look up each function to understand how it is used.
 
-```{r '2 Load'}
-library(klaR)
-data(iris)
+<p class='a'>
 
-#nrow(iris)
-#summary(iris)
+```{r '2'}
+# ------------------- Mon Feb 19 21:22:02 2018 --------------------#
+# Load the klaR library
+library(klaR)
+#Load the iris dataset
+data(iris)
+# Row count
+nrow(iris)
+# Summary of data
+summary(iris)
+# Top 6 rows
 head(iris)
 
 # identify indexes to be in testing dataset
 # every index of 5th, 10th, 15th .. will be the testing dataset
 # the rest are training dataset
+# 80% Training data, 20% Test Data, using a striated sample. %% returns the modulus of the division, if there's no modulus, it attributes a T, otherwise F. which provides the number index of the values marked as T.  
 testidx <- which(1:length(iris[, 1]) %% 5 == 0)
 
 # separate into training and testing datasets
-iristrain <- iris[-testidx,]
-iristest <- iris[testidx,]
+# Subsets all rows from iris that arent in the test index to make a training set 
+iristrain <- iris[-testidx, ]
+# Subsets iris using the test index rows to make a test set
+iristest <- iris[testidx, ]
 
-# apply Naive Bayes
-nbmodel <- NaiveBayes(Species~., data=iristrain)
+# apply Naive Bayes, formula specifies species as the classification, and all other rows as the data to train on
+nbmodel <- NaiveBayes(Species ~ ., data=iristrain)
 
-# check the accuracy
+# Create a prediction using all the data in the test set except the Species column
 prediction <- predict(nbmodel, iristest[,-5])
+# Check the accuracy with table, shows only 2 misclassifications
 table(prediction$class, iristest[,5])
 ```
 
 
-<p class='a'>
-```{r '2'}
-```
+
+
 </p>
 
 ### 2a
 <div class="q">How would you make a prediction for a new case with the above package?</div>
 <p class='a'>
-```{r '2a'}
-```
+Build the model, make a data frame with values in each of the predictor variables columns and set the newdata argument for the predict function to the data frame.
 </p>
 
 ### 2b
 <div class='q'>b. How does this package deal with numeric features? 
 </div>
 <p class='a'>
-```{r '2b'}
-```
+From inspecting the nbmodel and the resources that I have read, I am fairly certain that the KlaR implementation uses a Gaussian (normal) distribution density curve per class for values of each variable and determines the probability based on the number of values falling within the area under the curve (the normal probability density function).
 </p>
 
 ### 2c
 <div class="q">c. How does it specify a Laplace estimator?
 </div>
 <p class='a'>
-```{r '2c'}
-```
+The fL (factor Laplace) variable can be specified with a factor indicating the Laplace correction value using the following syntax fL = n where n is a positive integer. 
 </p>
 
 ## 3
 <div class='q'>What are Laplace estimators and why are they used in Naive Bayes classification? Provide an example of how they might be used and when. (You do not need to write any code. Instead explain their use in the R Notebook.)
 </div>
 <p class='a'>
+A Laplace estimator will attribute a value equal to the specified Laplace factor value to each variable/class combination such that probabilities amounting to 0 or 1 can be avoided. Thus the Bayes probability equation for a given class/variable combination when considering the probability of the unknown having the class would look like the following:
+
+$$\begin{aligned}
+\frac{{No. of Vars where Class = T} + L}{{Total No. of Obs for Var} + L*V_i} \\
+\text{Where }V_i = \text{ The No. of classes concerned with the variable in question}
+\end{aligned}$$
+
+
+This formula will be used to recalculate all probabilities.
+The Laplace correction factor is used to avoid 0 probabilities, divide by 0 situations, and probabilities of 1 and generally creates a more accurate model when there are class/variable combinations in the dataset with a probablity of 0.  
 </p>
