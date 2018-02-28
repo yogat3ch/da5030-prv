@@ -170,7 +170,21 @@ summary(mushroom_JRip)
 <div class='q'>So far we have explored four different approaches to classification: kNN, Naive Bayes, C5.0 Decision Trees, and RIPPER Rules. Comment on the differences of the algorithms and when each is generally used. Provide examples of when they work well and when they do not work well. Add your comments to your R Notebook. Be specific and explicit; however, no code examples are needed.
 </div>
 <p class='a'>
-Decision trees and RIPPER are adapted for situations where the decision making process must be transparent. RIPPER will re-evaluate cuts where a decision tree will not, which can add to computational load. Neither algorithm is particularly suited or data that has the majority of attributes as numeric.
+All the approaches, kNN, Naive Bayes, Decision Trees, and RIPPER Rules do not make assumptions about the data (a key differentiating factor from regression based models - linear/logistic/polynomial etc). Naive Bayes does, however, assume that the attributes are independent.
+kNN trains quickly because it does not build a model, but due to the use of a distance algorithm, the addition of dimensions to the testing data can add multiplicative layers of complexity and time to complete a prediction because the algorithm must iterate the distance algorithm over the entire training set for each new observation in the test data. 
+kNN has regression builds specifically for a numerical response variable prediction, whereas Naive Bayes will use bin classification for numeric response variables, thus kNN will be more precise with a numeric response variable.
+Naive Bayes builds a probability model based on the training data, that predictions for the test data can be rapidly computed from. Naive Bayes is best suited for data that has primarily nominal attributes. If numerical attributes are present, Naive Bayes fits Gaussian curves and uses the probablity density to calculate probability for the numeric variable. Thus, numerical data with a high degree of variance will make for less accurate models.
+If the response variable is nominal/categorical, and the dataset is very large and classifications must be made quickly with a high degree of accuracy, Naive Bayes is probably the best algorithm. If the response variable is numeric, kNN is best suited. If one needs a high degree of precision, the dataset is small to moderately sized, and a classification does not need to be made particularly quickly, kNN is best suited. 
+However, both kNN and Naive Bayes do not have particularly transparent explanatory value, and thus, if transparency or human readibility is necessary for the classification problem, look to decision trees and rule-based algorithms.
+Decision trees and RIPPER Rules are both capable of classifying 100% of the data, however this also makes them prone to over-fitting on training data. RIPPER Rules can be more computationally complex than a Decision tree because it allows for the re-evaluation of cut rules as the model is built, where decision tree uses a divide and conquer method where cuts are static as the model grows (though subtree replacement might change some of these when employing multiple trials to create an optimal model). The divide and conquer method also makes linear cuts in the data, thus cannot take into account more complex relationships between multiple variables.
+Both Decision Trees and rule-based algorithms are likely to be faster than kNN and Naive Bayes, but are also likely to be less accurate with complex data.
+Decision trees are well-suited for data with multiple numeric attributes, whereas RIPPER is not ideal for multiple numeric attributes.
+RIPPER will likely provide the most human legible output.
+To summarize, 
+If the task has a numeric response variable, precision is paramount, and time and computational resources are ample: kNN regression
+If the task has a numeric or nominal response variable, precision is not as important but accuracy still is, time and computational resources are limited, and/or the dataset is large and complex: Naive Bayes
+If the task has a nominal response variable, precision & accuracy are less important than transparency & legibility with legibility being paramount, time and computational resources are limited, and there are few to no numeric attributes: RIPPER
+If the task has a nominal response variable, precision & accuracy are less important than transparency & legibility, time and computational resources are limited, and there are multiple numeric attributes: Decision Tree
 </p>
 
 ## Problem 4 (25 Pts)
