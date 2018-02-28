@@ -6,15 +6,11 @@ always_allow_html: yes
 header-includes:
    - \usepackage{dcolumn}
 output: 
-  html_document: 
-    self_contained: yes
-    css: C:\Users\Stephen\Documents\R\win-library\3.4\neuhwk\rmarkdown\templates\DA5030\resources\bootstrap.min.css
-    highlight: zenburn
-    keep_md: no
-    theme: spacelab
-    toc: yes
-    toc_float: true
+  pdf_document: 
+  toc: no
+  latex_engine: xelatex
 ---
+
 ```{r setup, include=FALSE}
 # Knitr Options
 knitr::opts_chunk$set(echo = TRUE, message=FALSE,warning=FALSE,cache=TRUE, fig.align='center', fig.height=3.5, fig.width=5, tidy=TRUE, tidy.opts=list(width.cutoff=80))
@@ -66,14 +62,14 @@ setdiff(names(credit),names(creditOrig))
 # There are 10 attributes that are unique in the new dataset
 # ------------------- Tue Feb 27 13:52:54 2018 --------------------#
 # Take a look at feature tables
-sapply(credit[,sapply(credit, is.factor)],table,simplify = T)
+sapply(credit[,sapply(credit, is.factor)],table,simplify = T)  
 # ------------------- Tue Feb 27 14:00:21 2018 --------------------#
 # Summarize numeric attributes
 sapply(credit[,sapply(credit, is.numeric)],summary,simplify = T)
 table(credit$default)
 credit$default <- factor(credit$default,levels=c("n"="1","y"="2"),labels = c("n","y"))
 levels(credit$default)
-table(credit$dependents)
+table(credit$dependents)  
 # ------------------- Tue Feb 27 14:16:20 2018 --------------------#
 # Create test & Train sets
 set.seed(123)
@@ -84,25 +80,25 @@ credit_test  <- credit[-train_sample, ]
 # Ensure we have a roughly striated sampling of the default cases
 prop.table(table(credit_train$default))
 prop.table(table(credit_test$default))
-# caret::createDataPArtition could be used to make the test & train data sets have a nearly exact striated sample across the default attribute
+# caret::createDataPArtition could be used to make the test & train data sets have a nearly exact striated sample across the default   
 # ------------------- Tue Feb 27 14:53:19 2018 --------------------#
 # Load the library and build a decision tree
 library(C50)
 (credit_model <- C5.0(credit_train %>% select(-default), credit_train$default))
 # View the decision tree
 summary(credit_model)
-# It looks like the model is 85% accurate
+# It looks like the model is 85% accurate  
 # ------------------- Tue Feb 27 15:11:46 2018 --------------------#
 # Evaluate model performance
 credit_pred <- predict(credit_model, credit_test)
 caret::confusionMatrix(credit_pred,credit_test$default)
-# In practice with the test set, the accuracy is 74%. The model made 19 type 1 errors misclassifying actual defaults, which could be costly when it comes to loans. 
+# In practice with the test set, the accuracy is 74%. The model made 19 type 1 errors misclassifying actual defaults, which could be costly when it comes to loans.  
 # ------------------- Tue Feb 27 15:21:12 2018 --------------------#
 # Improve the model by adding more trials for boosting purposes
 (credit_model10 <- C5.0(credit_train %>% select(-default), credit_train$default,trials = 10))
 # View the decision tree accuracy table minus all the decision tree output
 summary(credit_model10) %>% .[['output']] %>% str_split(regex("\\n(?=Evaluation)",T),n=2) %>% unlist %>% .[2] %>% cat(sep="\n")
-# summarize, then select the output, split output into two sections on the newline right before it starts the evaluation table, unlist the str_split list output, select the 2nd section IE everything after the split, use cat to print it respecting the newline seperators
+# summarize, then select the output, split output into two sections on the newline right before it starts the evaluation table, unlist the str_split list output, select the 2nd section IE everything after the split, use cat to print it respecting the newline seperators  
 # Evaluate model performance
 credit_pred10 <- predict(credit_model10, credit_test)
 caret::confusionMatrix(credit_pred10,credit_test$default)
@@ -170,39 +166,41 @@ summary(mushroom_JRip)
 <div class='q'>So far we have explored four different approaches to classification: kNN, Naive Bayes, C5.0 Decision Trees, and RIPPER Rules. Comment on the differences of the algorithms and when each is generally used. Provide examples of when they work well and when they do not work well. Add your comments to your R Notebook. Be specific and explicit; however, no code examples are needed.
 </div>
 <p class='a'>
-All the approaches, kNN, Naive Bayes, Decision Trees, and RIPPER Rules do not make assumptions about the data (a key differentiating factor from regression based models - linear/logistic/polynomial etc). Naive Bayes does, however, assume that the attributes are independent.
-kNN trains quickly because it does not build a model, but due to the use of a distance algorithm, the addition of dimensions to the testing data can add multiplicative layers of complexity and time to complete a prediction because the algorithm must iterate the distance algorithm over the entire training set for each new observation in the test data. 
-kNN has regression builds specifically for a numerical response variable prediction, whereas Naive Bayes will use bin classification for numeric response variables, thus kNN will be more precise with a numeric response variable.
-Naive Bayes builds a probability model based on the training data, that predictions for the test data can be rapidly computed from. Naive Bayes is best suited for data that has primarily nominal attributes. If numerical attributes are present, Naive Bayes fits Gaussian curves and uses the probablity density to calculate probability for the numeric variable. Thus, numerical data with a high degree of variance will make for less accurate models.
-If the response variable is nominal/categorical, and the dataset is very large and classifications must be made quickly with a high degree of accuracy, Naive Bayes is probably the best algorithm. If the response variable is numeric, kNN is best suited. If one needs a high degree of precision, the dataset is small to moderately sized, and a classification does not need to be made particularly quickly, kNN is best suited. 
-However, both kNN and Naive Bayes do not have particularly transparent explanatory value, and thus, if transparency or human readibility is necessary for the classification problem, look to decision trees and rule-based algorithms.
-Decision trees and RIPPER Rules are both capable of classifying 100% of the data, however this also makes them prone to over-fitting on training data. RIPPER Rules can be more computationally complex than a Decision tree because it allows for the re-evaluation of cut rules as the model is built, where decision tree uses a divide and conquer method where cuts are static as the model grows (though subtree replacement might change some of these when employing multiple trials to create an optimal model). The divide and conquer method also makes linear cuts in the data, thus cannot take into account more complex relationships between multiple variables.
+All of the approaches: kNN, Naive Bayes, Decision Trees, and RIPPER Rules do not make assumptions about the data (a key differentiating factor from regression based models - linear/logistic/polynomial etc). Naive Bayes does, however, assume that the attributes are independent.   
+kNN trains quickly because it does not build a model, but due to the use of the distance algorithm, the addition of dimensions to the testing data can add multiplicative layers of complexity and time to complete a prediction because the algorithm must iterate the distance algorithm over the entire training set for each new observation in the test data.   
+kNN has regression builds specifically for precise numerical response variable prediction, whereas Naive Bayes will use bin classification and a mean for numeric response variables. Thus, kNN will be more precise with a numeric response variable.  
+Naive Bayes builds a probability model based on the training data, that predictions for the test data can be rapidly computed from. Naive Bayes is best suited for data that has primarily nominal attributes. If numerical attributes are present, Naive Bayes fits Gaussian curves and uses the probablity density to calculate probability for the numeric variable. Thus, numerical data with a high degree of variance will make for less accurate models.  
+If the response variable is nominal/categorical, and the dataset is very large and classifications must be made quickly with a high degree of accuracy, Naive Bayes is probably the best algorithm. If the response variable is numeric, kNN is best suited. If one needs a high degree of precision, the dataset is small to moderately sized, and a classification does not need to be made particularly quickly, kNN is best suited.   
+However, both kNN and Naive Bayes do not have particularly transparent explanatory value, and thus, if transparency or human readibility is necessary for the classification problem, look to decision trees and rule-based algorithms.    
+Decision trees and RIPPER Rules are both capable of classifying 100% of the data, however this also makes them prone to over-fitting on training data. RIPPER Rules can be more computationally complex than a Decision tree because it allows for the re-evaluation of cut rules as the model is built, where decision tree uses a divide and conquer method where cuts are static as the model grows (though subtree replacement might change some of these when employing multiple trials to create an optimal model). The divide and conquer method also makes linear cuts in the data, thus cannot take into account more complex relationships between multiple variables.  
 Both Decision Trees and rule-based algorithms are likely to be faster than kNN and Naive Bayes, but are also likely to be less accurate with complex data.
-Decision trees are well-suited for data with multiple numeric attributes, whereas RIPPER is not ideal for multiple numeric attributes. Decision trees are also well suited for data where feature selection is warranted.
-RIPPER will likely provide the most human legible output.
-To summarize, 
-If the task has a numeric response variable, precision is paramount, and time and computational resources are ample: kNN regression
-If the task has a numeric or nominal response variable, precision is not as important but accuracy still is, time and computational resources are limited, and/or the dataset is large and complex: Naive Bayes
-If the task has a nominal response variable, precision & accuracy are less important than transparency & legibility with legibility being paramount, time and computational resources are limited, and there are few to no numeric attributes: RIPPER
-If the task has a numeric or nominal response variable, precision & accuracy are less important than transparency & legibility, time and computational resources are limited, and there are multiple numeric attributes: Decision Tree.
+Decision trees are well-suited for data with multiple numeric attributes, whereas RIPPER is not ideal for multiple numeric attributes. Decision trees are also well suited for data where feature selection is warranted.  
+RIPPER will likely provide the most human legible output.    
+To summarize,   
+If the task has a numeric response variable, precision is paramount, and time and computational resources are ample: kNN regression  
+If the task has a numeric or nominal response variable, precision is not as important but accuracy still is, time and computational resources are limited, and/or the dataset is large and complex: Naive Bayes  
+If the task has a nominal response variable, precision & accuracy are less important than transparency & legibility with legibility being paramount, time and computational resources are limited, and there are few to no numeric attributes: RIPPER  
+If the task has a numeric or nominal response variable, precision & accuracy are less important than transparency & legibility, time and computational resources are limited, and there are multiple numeric attributes: Decision Tree.  
 </p>
 
 ## Problem 4 (25 Pts)
 <div class='q'>Much of our focus so far has been on building a single model that is most accurate. In practice, data scientists often construct multiple models and then combine them into a single prediction model. This is referred to as a model ensemble. Two common techniques for assembling such models are boosting and bagging. Do some research and define what model ensembles are, why they are important, and how boosting and bagging function in the construction of assemble models. Be detailed and provide references to your research. You can use this excerpt from Kelleher, MacNamee, and D'Arcy, Fundamentals of Machine Learning for Predictive Data Analytics as a starting point. This book is an excellent resource for those who want to dig deeper into data mining and machine learning.
 </div>
 <p class='a'>
-Model ensembles are combinations of learning algorithm models that can be both homogenous (using multiple iterations of the same model) or heterogenous (using multiple complementary models in a an ensemble model). Ensembles serve to reduce variance (bagging), bias (boosting), or improve prediction (stacking).<sup>2</sup> Ensembles models are more accurate because they aggregate multiple predictive inputs rather than a single predictive model.  Classifications are typically made through voting (bagging), or weighted voting (boosting) methods, where continuous features (regression tasks) are concerned predictions are made through taking the mean or median (bagging) or weighted mean (boosting).
-<strong>Bagging</strong>
-Bagging is short for bootstrap aggregating where each model is trained on a random sampling with replacement of the dataset. Each model produced has an equal weight in predicting the outcome, a key difference between bagging and boosting. By averaging or voting the predictive outputs of multiple predictive models made from data that was sampled with replacement (bootstrapped) the variance in the data is better accounted for and more accurate predictions can be made. Bagging can be run in parallel because the models are created independently of one another. Model types where data perturbation can produce major model changes (like decision trees) benefit moreso from bagging than do stable learners like kNN where changes in input data do not substantially effect the predictive output. <sup>2</sup>
-<strong>Boosting</strong>
-Boosting is a sequential model creation method that associates weights to misclassified outputs from previous models such that the next model will emphasize this partition of the data when building the subsequent model to reduce error. Error rates are used to determine each models overall weight in the final predictive model. Boosting will generally result in a more accurate model because of the weighting emphasis placed on misclassified outputs to reduce error. Furthermore, boosting reduces the decision tree tendency to overemphasizes attributes with many levels through the iterative weighting process described above. However, boosting can lead to overfitting, thus, if a model proves to be over-fitted, switching to bagging could resolve the issue.
+Model ensembles are combinations of learning algorithm models that can be homogenous (using multiple iterations of the same model) or heterogenous (using multiple complementary models). Ensembles serve to reduce variance (bagging), bias (boosting), or improve prediction (stacking).<sup>2</sup> Ensemble models are more accurate because they aggregate multiple predictive inputs rather than a single predictive model.  Classifications are typically made through voting (bagging), or weighted voting (boosting) methods. Where continuous features (regression tasks) are concerned, predictions are made through taking the mean or median (bagging) or weighted mean (boosting).  
+<strong>Bagging</strong>  
+Bagging is short for bootstrap aggregating. Where each model in the aggregate is trained on a random sampling with replacement (bootstrapping) of the dataset. Each model produced has an equal weight in predicting the outcome, a key difference between bagging and boosting (boosting uses weighting). By averaging or voting the predictive outputs of multiple predictive models made from data that was sampled with replacement (bootstrapped) the variance in the data is better accounted for and more accurate predictions can be made. Bagging can be run in parallel because the models are created independently of one another. Model types where data perturbation can produce major model changes (like decision trees) benefit moreso from bagging than do stable learners (like kNN) where changes in input data do not substantially effect the predictive output. <sup>2</sup>  
+<strong>Boosting</strong>  
+Boosting is a sequential model creation method that reduces error by associating weights to misclassified outputs from previous models such that the subsequent model will emphasize this partition of the data when building model. Error rates are used to determine each model's overall weight in the final predictive model. Boosting will generally result in a more accurate model because error is reduced through weighting misclassified outputs. Furthermore, boosting reduces the decision tree tendency to overemphasize attributes with many levels through the iterative weighting process described above. However, boosting can lead to overfitting, thus, if a model proves to be over-fitted, switching to bagging could resolve the issue.  
+  
+References  
+<ol>
+<li>XRISTICA. (2018). What is the difference between Bagging and Boosting? - Quantdare. [online] Available at: https://quantdare.com/what-is-the-difference-between-bagging-and-boosting/ [Accessed 28 Feb. 2018].</li>
 
-References
-1. XRISTICA. (2018). What is the difference between Bagging and Boosting? - Quantdare. [online] Available at: https://quantdare.com/what-is-the-difference-between-bagging-and-boosting/ [Accessed 28 Feb. 2018].
+<li>Smolyakov, V. (2018). Ensemble Learning to Improve Machine Learning Results. [online] Stats and Bots. Available at: https://blog.statsbot.co/ensemble-learning-d1dcd548e936 [Accessed 28 Feb. 2018].</li>
 
-2. Smolyakov, V. (2018). Ensemble Learning to Improve Machine Learning Results. [online] Stats and Bots. Available at: https://blog.statsbot.co/ensemble-learning-d1dcd548e936 [Accessed 28 Feb. 2018].
+<li>SeattleDataGuy. (2018). Boosting and Bagging: How To Develop A Robust Machine Learning Algorithm. [online] Available at: https://towardsdatascience.com/how-to-develop-a-robust-algorithm-c38e08f32201 [Accessed 28 Feb. 2018].</li>
 
-3. SeattleDataGuy. (2018). Boosting and Bagging: How To Develop A Robust Machine Learning Algorithm. [online] Available at: https://towardsdatascience.com/how-to-develop-a-robust-algorithm-c38e08f32201 [Accessed 28 Feb. 2018].
-
-4. Kelleher, J., Namee, B. and D'Arcy, A. (2015). Fundamentals of Machine Learning for Predictive Data Analytics. [online] MIT Press. Available at: https://mitpress.mit.edu/books/fundamentals-machine-learning-predictive-data-analytics [Accessed 28 Feb. 2018].
+<li>Kelleher, J., Namee, B. and D'Arcy, A. (2015). Fundamentals of Machine Learning for Predictive Data Analytics. [online] MIT Press. Available at: https://mitpress.mit.edu/books/fundamentals-machine-learning-predictive-data-analytics [Accessed 28 Feb. 2018].</li>
+</ol>
 </p>
