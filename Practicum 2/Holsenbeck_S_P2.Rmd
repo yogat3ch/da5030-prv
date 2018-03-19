@@ -1,0 +1,509 @@
+---
+title: "Holsenbeck_S_P2"
+author: "Stephen Synchronicity"
+date: '`r format(Sys.time(), "%Y-%m-%d")`'
+always_allow_html: yes
+header-includes:
+   - \usepackage{dcolumn}
+output: 
+  html_document: 
+    self_contained: yes
+    css: C:\Users\Stephen\Documents\R\win-library\3.4\neuhwk\rmarkdown\templates\DA5030\resources\bootstrap.min.css
+    highlight: zenburn
+    keep_md: no
+    theme: spacelab
+    toc: no
+---
+```{r setup, include=FALSE}
+# Knitr Options
+knitr::opts_chunk$set(echo = T, message=FALSE,warning=FALSE,cache=T, fig.align='center', fig.height=3.5, fig.width=5, tidy=T, tidy.opts=list(width.cutoff=80))
+library(knitr)
+knit_print.data.frame = function(x, ...) {
+    res = paste(c("", "", kable(x)), collapse = "\n")
+    asis_output(res)
+}
+options(scipen=12)
+# Attach dependencies
+rmarkdown::html_dependency_jquery()
+rmarkdown::html_dependency_bootstrap("spacelab")
+rmarkdown::html_dependency_jqueryui()
+# Make reproducible
+set.seed(1)
+# Load packages
+
+req.packages <- c("tidyverse","dplyr","htmltools","rvest","magrittr")
+for (q in seq_along(req.packages)) {
+  suppressPackageStartupMessages(library(req.packages[q],character.only = T))
+}
+```
+```{r 'Assignment',eval=F}
+# This code will extract the assignment HTML and print the output formatted for this Rmd document. Set Assignment html below
+# Use if assignment has blue font headers, and lists of questions
+Q <- read_html("https://da5030.weebly.com/practicum-2.html") %>% html_nodes(xpath="//font[contains(@color,'#24678d')]/ancestor::div[1]")
+Qtext <- read_html("https://da5030.weebly.com/practicum-2.html") %>% html_nodes(xpath="//font[contains(@color,'#24678d')]/ancestor::div[1]/following-sibling::div[contains(@class,'paragraph')][1]")
+Q.form <- vector("list",length(Q))
+for (i in seq_along(Q)) {
+ Q.form[[i]] <- list(title=NA,Qs=NA)
+  Q.form[[i]][["title"]] <- Q[i] %>% html_node(css="font") %>% html_text %>% paste("# ",.,"\n",sep="") 
+   
+    li <- xml_contents(Qtext[[i]]) %>% xml_children() %>% html_text
+    for (l in seq_along(li)) {
+    Q.form[[i]][['Qs']][l] <- paste("## ",i,letters[l],"\n<div class='q'>",li[l],"\n</div>\n```{r '",i,letters[l],"'}\n```\n<p class='a'>\n</p>",sep="")
+  }
+}
+lapply(unlist(Q.form), FUN="cat",sep='\n',simplify=T)
+```
+
+# Problem 1  (60 Points)
+
+## 1a
+<div class='q'>(0 pts) Download the data set <a href="http://archive.ics.uci.edu/ml/machine-learning-databases/adult/" target="_blank">Census Income Data for Adults</a> along with its explanation. Note that the data file does not contain header names; you may wish to add those. The description of each column can be found in the data set explanation. 
+</div>
+<p class='a'>
+</p>
+```{r '1a'}
+inc <- readr::read_csv(url("http://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data"),col_names=F)
+inc.te <- readr::read_csv("http://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.test",col_names=F,skip=1)
+# ----------------------- Thu Mar 15 14:55:14 2018 ------------------------#
+# Load Names
+nms <- c("
+age: continuous.
+workclass: Private, Self-emp-not-inc, Self-emp-inc, Federal-gov, Local-gov, State-gov, Without-pay, Never-worked.
+fnlwgt: continuous.
+education: Bachelors, Some-college, 11th, HS-grad, Prof-school, Assoc-acdm, Assoc-voc, 9th, 7th-8th, 12th, Masters, 1st-4th, 10th, Doctorate, 5th-6th, Preschool.
+education-num: continuous.
+marital-status: Married-civ-spouse, Divorced, Never-married, Separated, Widowed, Married-spouse-absent, Married-AF-spouse.
+occupation: Tech-support, Craft-repair, Other-service, Sales, Exec-managerial, Prof-specialty, Handlers-cleaners, Machine-op-inspct, Adm-clerical, Farming-fishing, Transport-moving, Priv-house-serv, Protective-serv, Armed-Forces.
+relationship: Wife, Own-child, Husband, Not-in-family, Other-relative, Unmarried.
+race: White, Asian-Pac-Islander, Amer-Indian-Eskimo, Other, Black.
+sex: Female, Male.
+capital-gain: continuous.
+capital-loss: continuous.
+hours-per-week: continuous.
+native-country: United-States, Cambodia, England, Puerto-Rico, Canada, Germany, Outlying-US(Guam-USVI-etc), India, Japan, Greece, South, China, Cuba, Iran, Honduras, Philippines, Italy, Poland, Jamaica, Vietnam, Mexico, Portugal, Ireland, France, Dominican-Republic, Laos, Ecuador, Taiwan, Haiti, Columbia, Hungary, Guatemala, Nicaragua, Scotland, Thailand, Yugoslavia, El-Salvador, Trinadad&Tobago, Peru, Hong, Holand-Netherlands.
+inc: >50K, <=50K.")
+# ----------------------- Thu Mar 15 14:57:56 2018 ------------------------#
+# Process text into headers
+nms %<>% strsplit(split="\\.?\\\n") %>% unlist
+nms <-  nms[-1]
+nms <- data.frame(Name=nms)
+nms %<>% separate(col="Name",into=c("Name","Lvls"),sep = "\\:\\s")
+names(inc) <- names(inc.te) <- nms$Name
+```
+
+
+## 1b
+<div class='q'>(0 pts) Explore the data set as you see fit and that allows you to get a sense of the data and get comfortable with it. Is there distributional skew in any of the features? Is there a need to apply a transform? 
+</div>
+<p class='a'>
+</p>
+```{r '1b'}
+apply(inc,2,FUN=anyNA)
+apply(inc,2,FUN=levels)
+
+inc[,nms$Lvls %>% stringr::str_detect("continuous")] %<>%  apply(2,as.numeric) # Change continuous variables to numeric
+apply(inc,2,FUN=class) #? why does thi say character for all? When viewing the df, it indicates columns as numeric.
+# https://github.com/tidyverse/tibble/issues/274
+glimpse(inc) # Works
+str(inc) # This explain it.
+# ----------------------- Thu Mar 15 15:29:13 2018 ------------------------#
+# To avoid any future issues by using a tibble
+inc %<>% as.data.frame()
+inc[,nms$Lvls %>% stringr::str_detect("continuous")] %<>%  apply(2,as.numeric)
+apply(inc,2,FUN=class) # Strange. Still does it
+# inc <- read.csv(url("http://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.data"),header=F)
+# inc.te <- read.csv("http://archive.ics.uci.edu/ml/machine-learning-databases/adult/adult.test",header=F,skip=1)
+names(inc) <- names(inc.te) <- nms$Name
+inc[,nms$Lvls %>% stringr::str_detect("continuous")] %<>%  apply(2,as.numeric)
+apply(inc,2,class)# Did not fix it?
+sapply(inc,FUN=class) #This works. I guess it has something to do with the apply function.
+
+# It looks like there's a lot of whitespace. I'm going to reload the data with read_csv and trim the ws there. Then test the classes with sapply.
+# The classes appear to show up properly, and the Whitespace is now gone.
+inc[,sapply(inc,is.character)] %<>% lapply(as.factor) #lapply works here, where sapply does not.
+sapply(inc[,sapply(inc,is.factor)],levels)
+# ----------------------- Thu Mar 15 15:49:15 2018 ------------------------#
+# Make the transformations to the test dataset
+inc.te[,nms$Lvls %>% stringr::str_detect("continuous")] %<>%  apply(2,as.numeric)
+inc.te[,sapply(inc.te,is.character)] %<>% lapply(as.factor)
+# ----------------------- Thu Mar 15 15:52:46 2018 ------------------------#
+# Are there distributional skews?
+
+for (i in seq_along(inc)) {
+  nm <- names(inc)[i]
+  print(ggplot2::qplot(inc[,i] %>% unlist,main=nm)+
+          theme(axis.text.x = element_text(angle=60)))
+}
+# ----------------------- Thu Mar 15 16:06:20 2018 ------------------------#
+# 
+```
+<p>There is quite a bit of skew in all of the numeric variables. There are also classes with very few to no observations within them. A laplace estimator may be needed.</p> 
+<p>There might be colinearity between capital gains & losses but this should not matter in naive Bayes.</p>
+
+
+## 1c
+<div class='q'>(10 pts) Create a frequency and then a likelihood table for the categorical features in the data set. Build your own Naive Bayes classifier for those features.
+</div>
+<p class='a'>
+</p>
+```{r '1c'}
+inc.fac <- inc[,sapply(inc,is.factor)]
+data <- inc.fac
+formula <- inc ~ .
+le <- 0
+nB <- function(formula,data,le=0) {
+  data <- model.frame(formula,data=data)
+  xvars <- names(data)[-1]
+  y <- names(data)[1]
+  # Compute Frequency table
+  freq.tables <-sapply(xvars,function(xvar,y){
+    table(data[[y]],data[[xvar]], dnn=c("",xvar))
+  },y=y)
+  # Create likelihood table with Laplace Estimator (le) added
+  l.tables <- lapply(freq.tables, function(ft,le){
+    t((ft+le) / (rowSums(ft)+le*nrow(ft)))
+  },le=le)
+  return(list(call=list(call=match.call(),formula=formula),tables=list(freq=freq.tables,likelihood=l.tables),data=data))
+}
+# ----------------------- Thu Mar 15 18:50:34 2018 ------------------------#
+# Create a prediction based on new data
+
+system.time(model <- nB(inc ~ .,data=data,le=0))
+
+predict.nB <- function(model,newdata=NULL) {
+# ----------------------- Fri Mar 16 15:03:20 2018 ------------------------#
+  # Fix  DV levels for factor and character
+  
+if(is.null(newdata)){mf <- model.frame(model$call$formula,model$data)
+  y <- mf[,1]
+  newdata <- mf[,-1]
+  }else {
+    mf <- model.frame(model$call$formula,newdata)
+    y <- mf[,1]
+    newdata <- mf[,-1]
+}
+ if(is.factor(y)){ y.lvls <- levels(y) %>% as.character}else {y.lvls <- unique(y) %>% as.character}
+ names(y.lvls) <- y.lvls
+ pred <- apply(newdata,1,function(r){
+   #print(r)
+  probs <- sapply(y.lvls,function(y.lvl,r){#print(r)
+    p <- purrr::map2(.x=model$tables$likelihood,.y=r,item=y.lvl,.f=function(.x,.y,item){
+       #print(.x)
+    sit <- sum(.x[,item])
+    slvl <- sum(.x[.y,])
+      
+    #   v <- c(.x[.y,item],sit,slvl)
+    #   names(v) <- c(paste0("P(",.y,"|",item,")"),item,.y)
+    # print(v)
+   
+   .x[.y,item]*sit/slvl
+   }) %>% unlist %>% prod
+  },r=r,USE.NAMES = T)
+  # print(probs)
+   pred <- names(which.max(probs))
+   # print(pred)
+   return(pred)}) 
+ 
+}
+
+inc.te.fac <- inc.te[,sapply(inc.te,is.factor)]
+inc.te.fac$inc %<>% gsub("\\.$","",.)
+system.time(pred <- predict.nB(model,newdata=inc.te.fac) )
+system.time(enB <- e1071::naiveBayes(inc~.,data=inc.fac))
+system.time(enB.pred <- predict(enB,newdata=inc.te.fac))
+caret::confusionMatrix(pred,inc.te.fac$inc)
+caret::confusionMatrix(enB.pred,inc.te.fac$inc)
+# ----------------------- Fri Mar 16 08:43:21 2018 ------------------------#
+# This returns a different answer than purrr::map2.
+# ----------------------- Fri Mar 16 21:42:38 2018 ------------------------#
+# Apparently after debugging for another purpose, the below gives the same answer as purrr::map2 possibly due to a laplace estimator hardcoded into the function.
+
+
+model$tables$likelihood[["workclass"]]["State-gov",'<=50K']*sum(model$tables$likelihood[["workclass"]][,'<=50K'])/sum(model$tables$likelihood[["workclass"]]["State-gov",])
+# ----------------------- Fri Mar 16 08:28:33 2018 ------------------------#
+# Example Frequency & Likelihood Tables 
+DT::datatable(model$tables$freq[["workclass"]])
+DT::datatable(model$tables$likelihood[["workclass"]])
+```
+This rudimentary implementation is slower and less accurate than the e1071 implementation, but it's a start.
+
+
+## 1d
+<div class='q'>(30 pts)Predict the binomial class membership for a white male adult who is a federal government worker with a bachelors degree who immigrated from Ireland. Ignore any other features in your model. You must build your own Naive Bayes Classifier -- you may not use a package.
+</div>
+<p class='a'>
+</p>
+```{r '1d'}
+model1d <- nB(inc ~ workclass + education + `native-country`,data=inc.fac,le=0)
+newdata<- c("inc"=(inc.fac$inc[1] %>% as.character),"workclass"="Federal-gov","education"="Bachelors","native-country"="Ireland")
+
+newdata %<>% as.matrix() %>% t %>% as.data.frame
+levels(newdata[['inc']]) <- levels(inc.fac$inc)
+(pred1d <- predict.nB(model1d,newdata=newdata))
+
+# ----------------------- Fri Mar 16 09:04:47 2018 ------------------------#
+# Manually checking answer
+inc.fac %>% filter(workclass=="Federal-gov"&education=="Bachelors"&`native-country`=="Ireland")
+#No observations meet that description, so the laplace estimator was used
+inc.fac %>% filter(workclass=="Federal-gov"&education=="Bachelors") %>% group_by(inc) %>% summarise(n=n())
+# ----------------------- Fri Mar 16 09:10:00 2018 ------------------------#
+# The probability <=50K for a person with these characteristics is higher. I wonder why the prediction was >50K?
+data1d <- inc.fac %>% select(inc,workclass,education,`native-country`)
+l.table <- sapply(names(data1d),function(xvar,y,data){
+    table(data[[y]],data[[xvar]], dnn=c("",xvar))
+  },y="inc",data=data1d) %>% lapply(FUN=function(ft,le){
+    t((ft+le) / (rowSums(ft)+le*nrow(ft)))
+  },le=0)
+l.table[[1]] <- NULL
+
+View(l.table)
+y.l <- levels(newdata$inc) %>% as.character
+names(y.l) <- y.l
+p <- sapply(y.l,function(x){
+  print(x)
+    p <- purrr::map2(.x=l.table,.y=(newdata[,-1,drop=T] %>% unlist %>%  as.character),item=x,.f=function(.x,.y,item){print(item)
+     #print(.x)
+      sit <- sum(.x[,item])
+      slvl <- sum(.x[.y,])
+      
+     #v <- c(.x[.y,item],sit,slvl)
+     #names(v) <- c(paste0("P(",.y,"|",item,")"),item,.y)
+   #print(v)
+   
+   return((.x[.y,item]*sit)/slvl)
+   }) %>% unlist %>% prod
+  },USE.NAMES = T)
+
+   names(which.max(p))
+   sum(l.table$`native-country`[,'>50K'])/sum(l.table$`native-country`)
+#TODO(There could be an issue with factors vs characters in each row of the data that the function is applied to)
+```
+<p>In examining the data by filtering for the descriptive aspects of the unknown, more observations make <=50K. A knn algorithm would have probably classified the unknown as <=50K. However, with Naive Bayes, the likelihood probabilities are calculated based on the entire dataset, and the prediction has nothing to do with the closest neighbors. When the final probabilities are calculated >50K actually has the highest probability for an unknown fitting the description in this question.
+</p>
+
+## 1e
+<div class='q'>(20 pts) Perform 10-fold cross validation on your algorithm to tune it and report the final accuracy results.
+</div>
+
+```{r '1e'}
+train <- caret::createFolds(inc.fac$inc,k=10,returnTrain=T)
+mods <- lapply(train,function(x,formula,data,le){
+  nB(formula,data=inc.fac[x,],le=le)
+},formula=inc ~ .,data=inc.fac,le=1)
+preds <- lapply(mods,function(x,newdata){
+  pred <- predict.nB(x,newdata=newdata)
+},newdata=inc.te.fac)
+acc.v <- lapply(preds,FUN= function(x){
+  acc <- caret::confusionMatrix(x,inc.te.fac$inc)[["overall"]][["Accuracy"]]
+})
+bestmodel <- mods[[which.max(acc.v %>% unlist)]]
+summary(acc.v %>% unlist)
+acc.v[[which.max(acc.v %>% unlist)]]
+# caret::train()
+# nBmodelInfo <- list(label = "Custom Naive Bayes",
+#                   library = "purrr",
+#                   type = "Classification",
+#                   parameters = data.frame(parameter = c("formula","data","le"),
+#                                           class = c("formula","data.frame","numeric"),
+#                                           label = c("formula","data","laplace estimator")),
+#                   grid = NULL,
+#                   loop = NULL,
+#                   fit = function(formula, data, param, lev, last, classProbs, ...) {          
+#                     ## mboost requires a data frame with predictors and response
+#                     
+#                     mod <- nB(formula,
+#                                   data = data,
+#                                   le = le)
+#                     },
+#                   predict = function(modelFit, newdata, submodels = NULL) {
+#                     if(!is.data.frame(newdata)) newdata <- as.data.frame(newdata)
+#                     ## By default a matrix is returned; we convert it to a vector
+#                     predict.nB(modelFit, newdata)[,1]
+#                   },
+#                   prob = NULL,
+#                   predictors = NULL,
+#                   tags = NULL,
+#                   levels = NULL,
+#                   sort = NULL)
+
+```
+<p class='a'>
+  The accuracy ranges from 75 to 76% as can be seen in the summary output.
+</p>
+
+# Problem 2 (50 Points)
+<div class="q">After reading the <a href="https://da5030.weebly.com/case-study-background.html" target="_blank">case study background information</a>, using the <a href="http://ds4100.weebly.com/uploads/8/6/5/9/8659576/uffidata.xlsx" target="_blank">UFFI data set</a>, answer these questions:
+</div>  
+## 2a
+<div class='q'>(10 pts) Are there outliers in the data set? If so, what is the appropriate action and how are they discovered?
+</div>
+<p class='a'>
+</p>
+The action regarding outliers will depend on the type of algorithm we intend to use and what we hope to achieve in working with the data. If the algorithm is dependent upon measures of mean/variance/sd then the outliers could negatively impact the accuracy of predictions. In this case, we are using multivariate regression analysis which will be affected by outliers. 
+```{r '2a',fig.height=9,fig.width=12}
+#googlesheets::gs_auth()
+#g <- googlesheets::gs_url("https://docs.google.com/spreadsheets/d/1oRlRYRe6ptkPf-z03ofubvB10Csh9icNLP0JMIQa69w/edit?durl=1#gid=1194101916")
+#uf <- googlesheets::gs_read(g,col_names=T)
+#save(uf,file="uf.Rdata")
+load("uf.Rdata")
+sapply(uf,class)
+rownames(uf)
+uf$Observation
+sapply(uf,summary)
+uf.fac.nms <- c("Year Sold","UFFI IN","Brick Ext","45 Yrs+","Central Air","Pool")
+uf[,uf.fac.nms] %<>% lapply(factor)
+all(sapply(uf[,uf.fac.nms],is.factor))
+uf.num <- uf[,!names(uf) %in% uf.fac.nms][,-1] #-1 for observations
+olr.tshld <- uf.num %>% sapply(IQR) * 1.5 
+ols.iqr <- lapply(uf.num,function(x){
+  t <- quantile(x)[4]+IQR(x)*1.5
+  ols.ind <- which(x > t)
+ ols <- subset(x,x > t)
+ names(ols) <- ols.ind
+ prp <- length(ols)/length(x)
+ out <- list("ols"=ols,"index"=ols.ind,"prp"=prp)
+})
+# The 3rd Quartile + 1.5IQR suggests that about 9% of the sales data are outliers
+ols.ind <- sapply(ols.iqr,purrr::pluck,"index",simplify = F)# create list of outlier indices
+ols.ind  %<>%  subset(subset=sapply(ols.ind,negate(is.null),simplify = T) %>% as.vector()) #subset the null lists out
+invisible(ols.mhd <- mvoutlier::dd.plot(uf[,c(1,3)],quan=.9))
+# The robust mahlanobis distance suggests about 10% of the sales data are outliers
+ols.ind[[(length(ols.ind) + 1)]]  <-   which(ols.mhd$outliers) # Add the mahlanobis indices to the list
+uf[Reduce(intersect,ols.ind),] #subset the data based on the intersection of all outlier indices 
+uf[Reduce(intersect,ols.ind[c(1,4)]),] #subset the data based on the intersection of all outlier indices 
+```
+<p class="a">The 3rd Quartile + 1.5IQR and Mahlanobis distance methods of determining outliers show 9 outliers in the sales data (the 2nd df). When considering outliers from all features in the dataset - the 3Q+1.5IQR method identifies an intersection of 2 outliers (the 1st df). Since the study purpose is to determine if a residence with UFFI was overpaid for, the presence of UFFI in these observations is important. Of the two observations in the 1st df, one has UFFI and one does not - thus these offset one another and will allow for comparison of cost across the factor UFFI. However, in the 2nd df, observation 94 is an extreme outlier on the sales data feature, and ooes not contain UFFI. This outlier in particular could skew the estimate of overpayment amount and will thus be removed.</p>
+```{r '2b cont'}
+uf %<>% subset(subset=(uf$Observation!=94))
+```
+
+
+## 2b
+<div class='q'>(5 pts) Using visual analysis of the sales price with a histogram, is the data normally distributed and thus amenable to parametric statistical analysis? What are the correlations to the response variable and are there collinearities?
+</div>
+<p class='a'>
+</p>
+```{r '2b'}
+shapiro.test(uf$`Sale Price`)
+# It is not normally distributed by the Shapiro-wilk test
+plot(lm(`Sale Price` ~ .,data=uf)) 
+# The Cook's distance plot doesn't indicate that we have any major concerns with regard to normality and thus are suitable for parametric statistical analysis. 
+uf[c(95,59,98,87),] # These observations are notable from the plots
+# ----------------------- Sat Mar 17 09:09:22 2018 ------------------------#
+# It looks like obs 60 is also an outlier in sqft and lot area. Observation 21 in sqftage. I don't think these data will skew our analysis as the question concerns overpaying for a residence with UFFI.
+# ----------------------- Sat Mar 17 09:13:13 2018 ------------------------#
+# To make our analysis less confusing from here forward, let's change the observation number to the rownames(#s)
+uf$Observation %>% unique %>% length
+rownames(uf) <- uf$Observation
+names(uf)
+psych::pairs.panels(uf %>% select(one_of(names(uf)[-c(1)])),scale=T,stars=T,cex=2)
+# ----------------------- Fri Mar 16 21:30:25 2018 ------------------------#
+# It appears that the variables below have the most correlation with Sale price and one another, suggesting possible multicolinearity.
+psych::pairs.panels(uf %>% select(one_of(c(names(uf)[c(3,2,8,9,10)]))),scale=T,stars=T,cex=2)
+```
+<p class="a">Analyses of normality after the removal of observation 94 suggest that the data is conducve to parametric statistical analyses. There does appear to be multicolinearity in the dataset between the features shown above, but given the data is intended to represent real estate data, this is to be expected.</p>
+
+## 2c
+<div class='q'>(2 pts) Is the presence or absence of UFFI alone enough to predict the value of a residential property?
+</div>
+<p class='a'>
+</p>
+```{r '2c'}
+```
+<p class="a"></p>
+
+## 2d
+<div class='q'>(4 pts) Is UFFI a significant predictor variable of selling price when taken with the full set of variables available?
+</div>
+<p class='a'>
+</p>
+```{r '2d'}
+```
+<p class="a"></p>
+
+## 2e
+<div class='q'>(15 pts) What is the ideal multiple regression model for predicting home prices in this data set? Provide a detailed analysis of the model, including Adjusted R-Squared, RMSE, and p-values of principal components. Use backfitting to build the model.
+</div>
+<p class='a'>
+</p>
+```{r '2e'}
+```
+<p class="a"></p>
+
+## 2f
+<div class='q'>(5 pts) On average, how do we expect UFFI will change the value of a property?
+</div>
+<p class="a"></p>
+```{r '2f'}
+```
+<p class='a'>
+</p>
+
+## 2g
+<div class='q'>(5 pts) If the home in question is older than 45 years old, doesn’t have a finished basement, has a lot area of 5000 square feet, has a brick exterior, 2 enclosed parking spaces, 1700 square feet of living space, central air, and no pool, what is its predicted value and what are the 95% confidence intervals of this home with UFFI and without UFFI?
+</div>
+<p class="a"></p>
+```{r '2g'}
+```
+<p class='a'>
+</p>
+
+## 2h
+<div class='q'>(4 pts) If $215,000 was paid for this home, by how much, if any, did the client overpay, and how much compensation is justified due to overpayment?
+</div>
+<p class="a"></p>
+```{r '2h'}
+```
+<p class='a'>
+</p>
+
+# Problem 3 (30 Points)
+
+
+## 3a
+<div class='q'>(5 pts) Divide the provided Titanic Survival Data into two subsets: a training data set and a test data set. Use whatever strategy you believe it best. Justify your answer.
+</div>
+<p class="a"></p>
+```{r '3a'}
+```
+<p class='a'>
+</p>
+
+## 3b
+<div class='q'>(13 pts) Construct a logistic regression model to predict the probability of a passenger surviving the Titanic accident. Test the statistical significance of all parameters and eliminate those that have a p-value > 0.05 using stepwise backward elimination.
+</div>
+<p class="a"></p>
+```{r '3b'}
+```
+<p class='a'>
+</p>
+
+## 3c
+<div class='q'>(2 pts) State the model as a regression equation.
+</div>
+<p class='a'>
+</p>
+```{r '3c'}
+```
+<p class="a"></p>
+
+## 3d
+<div class='q'>(10 pts) Test the model against the test data set and determine its prediction accuracy (as a percentage correct).
+</div>
+<p class='a'>
+</p>
+```{r '3d'}
+```
+<p class="a"></p>
+
+# Problem 4 (10 Points)
+
+
+## 4a
+<div class='q'>(10 pts) Elaborate on the use of kNN and Naive Bayes for data imputation. Explain in reasonable detail how you would use these algorithms to impute missing data and why it can work.
+</div>
+<p class='a'>
+</p>
+```{r '4a'}
+```
+<p class="a"></p>
