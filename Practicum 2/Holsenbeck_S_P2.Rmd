@@ -395,13 +395,18 @@ uf[c(95,59,98,87),] # These observations are notable from the plots
 # To make our analysis less confusing from here forward, let's change the observation number to the rownames(#s)
 uf$Observation %>% unique %>% length
 rownames(uf) <- uf$Observation
-names(uf)
-psych::pairs.panels(uf %>% select(one_of(names(uf)[-c(1)])),scale=T,stars=T,cex=2)
+uf <- uf[,-1]
+uf <- uf %>% select('Sale Price',everything())
+nms <- names(uf)
+
+psych::pairs.panels(uf,scale=T,stars=T,cex=2)
 # ----------------------- Fri Mar 16 21:30:25 2018 ------------------------#
 # It appears that the variables below have the most correlation with Sale price and one another, suggesting possible multicolinearity.
 psych::pairs.panels(uf %>% select(one_of(c(names(uf)[c(3,2,8,9,10)]))),scale=T,stars=T,cex=2)
 ```
 <p class="a">Analyses of normality after the removal of observation 94 suggest that the data is conducve to parametric statistical analyses. There does appear to be multicolinearity in the dataset between the features shown above, but given the data is intended to represent real estate data, this is to be expected.</p>
+
+
 
 ## 2c
 <div class='q'>(2 pts) Is the presence or absence of UFFI alone enough to predict the value of a residential property?
@@ -409,8 +414,9 @@ psych::pairs.panels(uf %>% select(one_of(c(names(uf)[c(3,2,8,9,10)]))),scale=T,s
 <p class='a'>
 </p>
 ```{r '2c'}
+summary(uf.lm <- lm(`Sale Price` ~ `UFFI IN`,data=uf))
 ```
-<p class="a"></p>
+<p class="a">The $R^2$ and p-value in these results suggests a definite no.</p>
 
 ## 2d
 <div class='q'>(4 pts) Is UFFI a significant predictor variable of selling price when taken with the full set of variables available?
@@ -418,8 +424,9 @@ psych::pairs.panels(uf %>% select(one_of(c(names(uf)[c(3,2,8,9,10)]))),scale=T,s
 <p class='a'>
 </p>
 ```{r '2d'}
+summary(uf.lm <- lm(`Sale Price` ~ .,data=uf))
 ```
-<p class="a"></p>
+<p class="a">No, it does not appear to be a significant variable when considered along all variables. This could be due to it being included with features more strongly correlated with real estate value like sqft, enclosed parking spaces, and lot area.</p>
 
 ## 2e
 <div class='q'>(15 pts) What is the ideal multiple regression model for predicting home prices in this data set? Provide a detailed analysis of the model, including Adjusted R-Squared, RMSE, and p-values of principal components. Use backfitting to build the model.
@@ -427,23 +434,104 @@ psych::pairs.panels(uf %>% select(one_of(c(names(uf)[c(3,2,8,9,10)]))),scale=T,s
 <p class='a'>
 </p>
 ```{r '2e'}
+# ----------------------- Tue Mar 20 10:53:37 2018 ------------------------#
+# 
+
+library(gam)
+# data(gam.data)
+# gam.data %>% summary
+# summary(Gam.object <- gam::gam(y ~ gam::s(x,6) + z,data=gam.data))
+# plot(Gam.object)
+uf.tr <- caret::createDataPartition(uf$SalePrice,times=length(uf),p=.75)
+uf.tr <- caret::trainControl(method="cv",number= length(uf),repeats=2,allowParallel = T,search="grid",index=uf.tr,verboseIter = T)
+# ----------------------- Tue Mar 20 11:54:52 2018 ------------------------#
+# After some troubleshooting it looks like train won't work with the colnames as they are
+colnames(uf) %<>% snakecase::to_upper_camel_case()
+# The training sets need to be recreated for this to work properly
+# It looks like the variable 45Yrs+ may still be causing issues
+(nms <- names(uf))
+nms[5] <- "Yrs"
+names(uf) <- nms
+# ----------------------- Tue Mar 20 12:07:11 2018 ------------------------#
+# Note: standardize variable names in the data processing phase.
+uf.mod <- caret::train(SalePrice ~ .,data=uf,method="gamSpline", trControl=uf.tr, tuneLength = 7)
+#uf.mod.lo <- caret::train(SalePrice ~ .,data=uf,method="gamLoess", trControl=uf.tr) # Fails due to the function calling predict.gam v predict.Gam
+uf.mod[["results"]]
+# ----------------------- Tue Mar 20 14:30:14 2018 ------------------------#
+# The adjusted Rsquared and corresponded RMSE values can be observed in the table.The best model can be seen graphically and in the following row of the summary.
+uf.mod[["results"]][3,]
+# ----------------------- Tue Mar 20 14:34:45 2018 ------------------------#
+# The p-values of each of the terms in the model can be seen below
+summary(uf.mod$finalModel)[[4]]
+# Note that UFFI remans insignificant. However, the plot below indicates that it does have a negative effect of up to ~$4000. Apologies, I can't figure out how to get it to display just one plot.
+layout(matrix(c(1:15),1,2))
+plot(uf.mod$finalModel)
+uf.mod$finalModel[["coefficients"]][["UffiIn1"]]
+# Make that -$6000
+
 ```
-<p class="a"></p>
+<p class="a">The generalized additive model with splines was selected because of the addition of splining as each variable in this dataset was expected to exert very different effects, some non-linear, that would dampen one another in a model without splining. </p>
+```{r '2d cont'}
+uf.mod[["finalModel"]][["formula"]]
+```
+<p class="a">From the formula above it can be observed that smoothing was applied to Basement finished sq ft, Lotarea, and Living Area sqftage. In the plots above, Basement finished sqftage can be observed to have diminishing returns beyond a certain point. While Lot Area and Living area can be observed to have somewhat of an exponential effect. This model will likely have the best predictive value based on R-squared and RMSE, though we can use a stepwise selection method to select the variables used in the optimal model</p>
+```{r '2d step'}
+# uf.mod.terms <- c('YearSold','UffiIn', 'BrickExt','Yrs', 'CentralAir', 'EncPkSpaces', 'BsmntFinSf', 'LotArea', 'LivingAreaSf')
+# scope <- vector("list",length(uf.mod.terms))
+# names(scope) <- uf.mod.terms
+# for (i in 1:6) {
+#   scope[[uf.mod.terms[i]]] <- c("1",uf.mod.terms[i])
+# }
+# scope$BsmntFinSf <- c("1","log(BsmntFinSf)","s(BsmntFinSf,df=1.66667)","lo(BsmntFinSf)")
+# scope$LotArea <- c("1","log(LotArea)","s(LotArea,df=1.66667)","lo(LotArea)")
+# scope$LivingAreaSf <- c("1","log(LivingAreaSf)","s(LivingAreaSf,df=1.66667)","lo(LivingAreaSf)")
+# ----------------------- Tue Mar 20 15:40:32 2018 ------------------------#
+# A Much faster way that actually works
+
+scope.s <- gam.scope(uf,smoother = "s",arg="df=1.66667")
+scope.s[["EncPkSpaces"]] <- ~ 1 + EncPkSpaces # This needed to be fixed
+scope.lo <- gam.scope(uf,smoother = "lo")
+scope.lo[["EncPkSpaces"]] <- ~ 1 + EncPkSpaces
+uf.gam <- gam::gam(SalePrice ~ YearSold + UffiIn + BrickExt + Yrs + CentralAir + EncPkSpaces + BsmntFinSf + LotArea + LivingAreaSf,data=uf)
+uf.gam.s.step <- gam::step.Gam(uf.gam,scope=scope.s,direction = "both",trace=F) 
+uf.gam.lo.step <- gam::step.Gam(uf.gam,scope=scope.lo,direction = "both",trace=F) 
+summary(uf.gam.s.step)
+
+# ----------------------- Tue Mar 20 15:45:22 2018 ------------------------#
+# The smoothing spline model chose to retain the UFFI variable, though it did not become significant. 
+
+summary(uf.gam.lo.step)
+# ----------------------- Tue Mar 20 15:47:35 2018 ------------------------#
+# A loess smooth model dropped the UFFI variable altogether with preference for BrickExt.
+plot(uf.gam.s.step)
+
+```
+<p class="a">The smoothing splines stepwise selection model has a slightly lower AIC, and includes the UFFI variable. The coefficient is very similar to the coefficient that resulted from train, though the p-value is not significant.</p>
 
 ## 2f
 <div class='q'>(5 pts) On average, how do we expect UFFI will change the value of a property?
 </div>
 <p class="a"></p>
 ```{r '2f'}
+uf.gam.s.step[["coefficients"]][['UffiIn1']]
+uf.mod$finalModel[["coefficients"]][["UffiIn1"]]
 ```
 <p class='a'>
+  Based on the stepwise selected spline smoothing model above, the presence of UFFI can take up to ~ $6000 off of the value of a home.  
 </p>
 
 ## 2g
 <div class='q'>(5 pts) If the home in question is older than 45 years old, doesn’t have a finished basement, has a lot area of 5000 square feet, has a brick exterior, 2 enclosed parking spaces, 1700 square feet of living space, central air, and no pool, what is its predicted value and what are the 95% confidence intervals of this home with UFFI and without UFFI?
 </div>
-<p class="a"></p>
+<p class="a">This question doesn't specify which year the purchase was made, which could have a significant effect. We'll say 2013, which was not significantly weighted and hopefully will not impact the influence of the features specified.</p>
 ```{r '2g'}
+# ----------------------- Tue Mar 20 16:16:15 2018 ------------------------#
+newdata <- matrix(data=c(20000,2013,0,1,1,0,5000,2,1700,1,0,20000,2013,1,1,1,0,5000,2,1700,1,0),nrow=2,byrow=T,dimnames=list(rows=NULL,cols=nms))
+newdata %<>%  as.data.frame()
+newdata[,sapply(uf,is.factor)] %<>% lapply(as.factor)
+identical(sapply(newdata,is.factor),sapply(uf,is.factor))
+newdata.pred <- predict.Gam(uf.gam.s.step,newdata = newdata,se.fit=T)
+
 ```
 <p class='a'>
 </p>
