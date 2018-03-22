@@ -14,6 +14,7 @@ output:
     theme: spacelab
     toc: no
 ---
+
 ```{r setup, include=FALSE}
 # Knitr Options
 knitr::opts_chunk$set(echo = T, message=FALSE,warning=FALSE,cache=T, fig.align='center', fig.height=3.5, fig.width=5, tidy=T, tidy.opts=list(width.cutoff=80))
@@ -233,49 +234,49 @@ This rudimentary implementation is slower and less accurate than the e1071 imple
 </div>
 <p class='a'>
 </p>
-```{r '1d'}
+```{r '1d',eval=T}
 model1d <- nB(inc ~ workclass + education + `native-country`,data=inc.fac,le=0)
 newdata<- c("inc"=(inc.fac$inc[1] %>% as.character),"workclass"="Federal-gov","education"="Bachelors","native-country"="Ireland")
-
+newdata
 newdata %<>% as.matrix() %>% t %>% as.data.frame
 levels(newdata[['inc']]) <- levels(inc.fac$inc)
 (pred1d <- predict.nB(model1d,newdata=newdata))
 
 # ----------------------- Fri Mar 16 09:04:47 2018 ------------------------#
 # Manually checking answer
-inc.fac %>% filter(workclass=="Federal-gov"&education=="Bachelors"&`native-country`=="Ireland")
+DT::datatable(inc.fac %>% filter(workclass=="Federal-gov"&education=="Bachelors"&`native-country`=="Ireland"))
 #No observations meet that description, so the laplace estimator was used
 inc.fac %>% filter(workclass=="Federal-gov"&education=="Bachelors") %>% group_by(inc) %>% summarise(n=n())
 # ----------------------- Fri Mar 16 09:10:00 2018 ------------------------#
 # The probability <=50K for a person with these characteristics is higher. I wonder why the prediction was >50K?
-data1d <- inc.fac %>% select(inc,workclass,education,`native-country`)
-l.table <- sapply(names(data1d),function(xvar,y,data){
-    table(data[[y]],data[[xvar]], dnn=c("",xvar))
-  },y="inc",data=data1d) %>% lapply(FUN=function(ft,le){
-    t((ft+le) / (rowSums(ft)+le*nrow(ft)))
-  },le=0)
-l.table[[1]] <- NULL
-
-View(l.table)
-y.l <- levels(newdata$inc) %>% as.character
-names(y.l) <- y.l
-p <- sapply(y.l,function(x){
-  print(x)
-    p <- purrr::map2(.x=l.table,.y=(newdata[,-1,drop=T] %>% unlist %>%  as.character),item=x,.f=function(.x,.y,item){print(item)
-     #print(.x)
-      sit <- sum(.x[,item])
-      slvl <- sum(.x[.y,])
-      
-     #v <- c(.x[.y,item],sit,slvl)
-     #names(v) <- c(paste0("P(",.y,"|",item,")"),item,.y)
-   #print(v)
-   
-   return((.x[.y,item]*sit)/slvl)
-   }) %>% unlist %>% prod
-  },USE.NAMES = T)
-
-   names(which.max(p))
-   sum(l.table$`native-country`[,'>50K'])/sum(l.table$`native-country`)
+# data1d <- inc.fac %>% select(inc,workclass,education,`native-country`)
+# l.table <- sapply(names(data1d),function(xvar,y,data){
+#     table(data[[y]],data[[xvar]], dnn=c("",xvar))
+#   },y="inc",data=data1d) %>% lapply(FUN=function(ft,le){
+#     t((ft+le) / (rowSums(ft)+le*nrow(ft)))
+#   },le=0)
+# l.table[[1]] <- NULL
+# 
+# View(l.table)
+# y.l <- levels(newdata$inc) %>% as.character
+# names(y.l) <- y.l
+# p <- sapply(y.l,function(x){
+#   print(x)
+#     p <- purrr::map2(.x=l.table,.y=(newdata[,-1,drop=T] %>% unlist %>%  as.character),item=x,.f=function(.x,.y,item){print(item)
+#      #print(.x)
+#       sit <- sum(.x[,item])
+#       slvl <- sum(.x[.y,])
+#       
+#      #v <- c(.x[.y,item],sit,slvl)
+#      #names(v) <- c(paste0("P(",.y,"|",item,")"),item,.y)
+#    #print(v)
+#    
+#    return((.x[.y,item]*sit)/slvl)
+#    }) %>% unlist %>% prod
+#   },USE.NAMES = T)
+# 
+#    names(which.max(p))
+#    sum(l.table$`native-country`[,'>50K'])/sum(l.table$`native-country`)
 #TODO(There could be an issue with factors vs characters in each row of the data that the function is applied to)
 ```
 <p>In examining the data by filtering for the descriptive aspects of the unknown, more observations make <=50K. A knn algorithm would have probably classified the unknown as <=50K. However, with Naive Bayes, the likelihood probabilities are calculated based on the entire dataset, and the prediction has nothing to do with the closest neighbors. When the final probabilities are calculated >50K actually has the highest probability for an unknown fitting the description in this question.
@@ -370,7 +371,7 @@ invisible(ols.mhd <- mvoutlier::dd.plot(uf[,c(1,3)],quan=.9))
 # The robust mahlanobis distance suggests about 10% of the sales data are outliers
 ols.ind[[(length(ols.ind) + 1)]]  <-   which(ols.mhd$outliers) # Add the mahlanobis indices to the list
 uf[Reduce(intersect,ols.ind),] #subset the data based on the intersection of all outlier indices 
-uf[Reduce(intersect,ols.ind[c(1,4)]),] #subset the data based on the intersection of all outlier indices 
+DT::datatable(uf[Reduce(intersect,ols.ind[c(1,4)]),]) #subset the data based on the intersection of all outlier indices 
 ```
 <p class="a">The 3rd Quartile + 1.5IQR and Mahlanobis distance methods of determining outliers show 9 outliers in the sales data (the 2nd df). When considering outliers from all features in the dataset - the 3Q+1.5IQR method identifies an intersection of 2 outliers (the 1st df). Since the study purpose is to determine if a residence with UFFI was overpaid for, the presence of UFFI in these observations is important. Of the two observations in the 1st df, one has UFFI and one does not - thus these offset one another and will allow for comparison of cost across the factor UFFI. However, in the 2nd df, observation 94 is an extreme outlier on the sales data feature, and ooes not contain UFFI. This outlier in particular could skew the estimate of overpayment amount and will thus be removed.</p>
 ```{r '2b cont'}
@@ -436,17 +437,17 @@ summary(uf.lm <- lm(`Sale Price` ~ .,data=uf))
 ```{r '2e'}
 # ----------------------- Tue Mar 20 10:53:37 2018 ------------------------#
 # 
-
+colnames(uf) %<>% snakecase::to_upper_camel_case()
 library(gam)
 # data(gam.data)
 # gam.data %>% summary
 # summary(Gam.object <- gam::gam(y ~ gam::s(x,6) + z,data=gam.data))
 # plot(Gam.object)
 uf.tr <- caret::createDataPartition(uf$SalePrice,times=length(uf),p=.75)
-uf.tr <- caret::trainControl(method="cv",number= length(uf),repeats=2,allowParallel = T,search="grid",index=uf.tr,verboseIter = T)
+uf.tr <- caret::trainControl(method="cv",number= length(uf),repeats=2,allowParallel = T,search="grid",index=uf.tr,verboseIter = F)
 # ----------------------- Tue Mar 20 11:54:52 2018 ------------------------#
 # After some troubleshooting it looks like train won't work with the colnames as they are
-colnames(uf) %<>% snakecase::to_upper_camel_case()
+
 # The training sets need to be recreated for this to work properly
 # It looks like the variable 45Yrs+ may still be causing issues
 (nms <- names(uf))
@@ -527,22 +528,32 @@ uf.mod$finalModel[["coefficients"]][["UffiIn1"]]
 ```{r '2g'}
 # ----------------------- Tue Mar 20 16:16:15 2018 ------------------------#
 newdata <- matrix(data=c(20000,2013,0,1,1,0,5000,2,1700,1,0,20000,2013,1,1,1,0,5000,2,1700,1,0),nrow=2,byrow=T,dimnames=list(rows=NULL,cols=nms))
+# Row 1 without, row 2 with
 newdata %<>%  as.data.frame()
 newdata[,sapply(uf,is.factor)] %<>% lapply(as.factor)
 identical(sapply(newdata,is.factor),sapply(uf,is.factor))
-newdata.pred <- predict.Gam(uf.gam.s.step,newdata = newdata,se.fit=T)
-
+# Predicted values
+(newdata.pred <- predict.Gam(uf.gam.s.step,newdata = newdata,se.fit=T))
+gam.ex <- gam::gam.exact(uf.gam.s.step)
+DT::datatable(gam.ex[['coefficients']])
+rownames(gam.ex$coefficients)[9]
+std.err <- gam.ex$coefficients[9,2]
+#Confidence int for without
+(without.uf <- c(Lwr=newdata.pred[1]-1.96*std.err,Upr=newdata.pred[1]+1.96*std.err))
+#Confidence int for with
+(with.uf <- c(Lwr=newdata.pred[2]-1.96*std.err,Upr=newdata.pred[2]+1.96*std.err))
 ```
-<p class='a'>
-</p>
+
 
 ## 2h
 <div class='q'>(4 pts) If $215,000 was paid for this home, by how much, if any, did the client overpay, and how much compensation is justified due to overpayment?
 </div>
 <p class="a"></p>
 ```{r '2h'}
+215000-newdata.pred
+dist(newdata.pred)
 ```
-<p class='a'>
+<p class='a'> Upon rote comparison of paid to the prediction, the client overpaid by a great deal. However, the difference in predictions for the UFFI variable accounts for ~$6207 of the overpayment, so this would likely be the max award they might receive if they win the suit. However, a defense attorney with some statistical expertise might argue that due to the p-value of the coefficient indicating it is not statistically signficant from 0, the client isn't owed anything. 
 </p>
 
 # Problem 3 (30 Points)
@@ -552,7 +563,44 @@ newdata.pred <- predict.Gam(uf.gam.s.step,newdata = newdata,se.fit=T)
 <div class='q'>(5 pts) Divide the provided Titanic Survival Data into two subsets: a training data set and a test data set. Use whatever strategy you believe it best. Justify your answer.
 </div>
 <p class="a"></p>
-```{r '3a'}
+```{r '3a',eval=F}
+ttc <- read_csv(file="http://ds4100.weebly.com/uploads/8/6/5/9/8659576/titanic_data.csv",trim_ws = T)
+ttc <- ttc[,-1]
+ttc <- ttc[,- which(names(ttc) %in% c('Name','Ticket','Cabin'))]
+sapply(ttc,function(x){any(is.na(x))})
+ttc[,names(ttc)[c(1,2,3,8)]] %<>% lapply(as.factor)
+ttc.emb.nB <- e1071::naiveBayes(Embarked~.,data=ttc)
+na.ind <- sapply(ttc$Embarked,is.na) %>% which
+ttc[na.ind,] <- predict(ttc.emb.nB,newdata=ttc[na.ind,])
+library
+library(caret)
+library(kernlab)
+na.ind <- apply(ttc,1,function(x){any(is.na(x))})
+ttc.tr <- caret::createDataPartition(ttc$Sex[-na.ind],times=length(ttc),p=.75)
+ttc.tr <- caret::trainControl(method="repeatedcv",number= length(ttc),repeats=2,allowParallel = T,search="grid",index=ttc.tr,verboseIter = F)
+
+ttc.sex.mod <- caret::train(Sex ~ .,data=ttc[-na.ind,],method="nb", na.action = na.omit, trControl=ttc.tr, tuneGrid = expand.grid(fL=1,usekernel=F,adjust=1))
+na.ind <- sapply(ttc$Sex,is.na) %>% which
+predict(ttc.sex.mod$fi,newdata=ttc[na.ind])
+
+ttc.train <- caret::createDataPartition(ttc$Survived,times=length(ttc),p=.75)
+psych::pairs.panels(ttc,stars = T)
+ttc.trctrl <- caret::trainControl(method="repeatedcv",repeats=3,index=ttc.train,allowParallel = T)
+
+tG <- expand.grid(C=2^seq(-5,5,.25),Sigma=2^seq(-5,5,.25))
+
+library(doParallel)
+# make a cluster with all possible threads (not cores)
+cl <- makeCluster(detectCores())
+# register the number of parallel workers (here all CPUs)
+registerDoParallel(cl)
+# return number of parallel workers
+getDoParWorkers() 
+ttc.mod <- caret::train(Survived~.,data=ttc,trControl=ttc.trctrl,tuneGrid=tG,method="svmRadialSigma") 
+# insert parallel calculations here
+# stop the cluster and remove  Rscript.exe childs (WIN)
+stopCluster(cl)
+registerDoSEQ()
 ```
 <p class='a'>
 </p>
@@ -591,6 +639,12 @@ newdata.pred <- predict.Gam(uf.gam.s.step,newdata = newdata,se.fit=T)
 <div class='q'>(10 pts) Elaborate on the use of kNN and Naive Bayes for data imputation. Explain in reasonable detail how you would use these algorithms to impute missing data and why it can work.
 </div>
 <p class='a'>
+Naive Bayes and kNN can be used to intelligently impute missing values. A function that performs this operation would proceed as follows:
+1. Locate and record row,col indices for each missing value in the data set with apply, is.na, which
+2. If knn is the preferred method, use na.omit to omit all rows with missing values such that distance can be computed between all known values in the unknown row with data, and the rows with NA omitted. The nearest neighbors maximum vote can then be used to determine the missing value. The missing value, once filled, can then be used in the next distance calculation for unknown data. This can be iterated over each missing value using kNN classification and regression methods.
+3. Naive Bayes can be used with a Laplace estimator in the calculation of the likelihood table to account for missing values. The likelihood table can then be used to predict missing values where necessary.
+
+
 </p>
 ```{r '4a'}
 ```
