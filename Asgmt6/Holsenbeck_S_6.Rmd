@@ -1,0 +1,418 @@
+---
+title: "Holsenbeck_S_6"
+author: "Stephen Synchronicity"
+date: '`r format(Sys.time(), "%Y-%m-%d")`'
+always_allow_html: yes
+header-includes:
+   - \usepackage{dcolumn}
+output: 
+  pdf_document: 
+  toc: no
+  latex_engine: xelatex
+---
+```{r setup, include=FALSE}
+# Knitr Options
+knitr::opts_chunk$set(echo = TRUE, message=FALSE,warning=FALSE,cache=TRUE, fig.align='center', fig.height=3.5, fig.width=5, tidy=TRUE, tidy.opts=list(width.cutoff=80)) 
+library(knitr)
+knit_print.data.frame = function(x, ...) {
+    res = paste(c("", "", kable(x)), collapse = "\n")
+    asis_output(res)
+}
+# Attach dependencies
+rmarkdown::html_dependency_jquery()
+rmarkdown::html_dependency_bootstrap("spacelab")
+rmarkdown::html_dependency_jqueryui()
+# Make reproducible
+set.seed(1)
+# Load packages
+require("tidyverse")
+require("dplyr")
+require("htmltools")
+require("rvest")
+```
+```{r 'Assignment',eval=F}
+# This code will extract the assignment HTML and print the output formatted for this Rmd document. Set Assignment html below
+# Use if assignment is made up of list items
+Q <- read_html("https://da5030.weebly.com/assignment-6.html") %>% html_nodes(xpath="//div[contains(@class,'paragraph')]/ol | //div[contains(@class,'paragraph')]/ul")
+L <- vector("list",length(Q))
+for (i in seq_along(Q)) {
+  for (m in seq_along(xml_children(Q[[i]]))) {
+    print(m)
+    L[[i]][m] <- xml_children(Q[[i]])[m]  %>% gsub("<li>",paste("### ",i,letters[m],"\n<div class='q'>",sep=""),.,perl=T) %>% gsub("</li>",paste("\n</div>\n<p class='a'>\n```{r '",i,letters[m],"'}\n```\n</p>",sep=""),.,perl=T) %>%  str_split("\n")
+  }
+  
+}
+lapply(L, function(x){sapply(unlist(x),FUN="cat",sep='\n',simplify=T)})
+# Use if assignment has h2 headers and div questions
+Q <- read_html("https://da5030.weebly.com/assignment-6.html") %>% html_nodes(xpath="//h2[contains(@class,'wsite-content-title')]/font[contains(@color,'#24678d')]")
+Qtext <- read_html("https://da5030.weebly.com/assignment-6.html") %>% html_nodes(xpath="//h2[contains(@class,'wsite-content-title')]/font[contains(@color,'#24678d')]/parent::h2/following-sibling::div[contains(@class,'paragraph')][1]")
+Q.form <- vector()
+for (i in seq_along(Q)) {
+  Q.form[i] <- Q[i] %>% html_text %>% paste("## ",.,"\n<div class='q'>",sep="") %>% paste(html_text(Qtext[i]),sep="") %>% paste("\n</div>\n<p class='a'>\n```{r '",i,"'}\n```\n</p>\n",sep="") %>%  str_split("\n")
+}
+sapply(Q.form, FUN="cat",sep='\n',simplify=T)
+```
+
+## Problem 1 (60 Points)
+<div class='q'>Download the data set on student achievement in secondary education math education of two Portuguese schools (use the data set Students Math). Using any packages you wish, complete the following tasks:
+</div>
+
+
+### 1a
+<div class='q'>(10 pts) Create scatter plots and pairwise correlations between four continuous variables and the final grade (G3) using the <em>pairs.panels()</em> function in R. Pick the variables you believe are most useful.
+</div>
+<p class='a'>
+We actually used this dataset when learning SVMs, Lasso, Ridge and Elastic Net Regression in PPUA 5301: Intro to Computational Statistics. Some of the data cleaning has already been coded, thus I'm going to c/p that code to use here.
+<strong>Data:</strong>
+<blockquote>
+P. Cortez and A. Silva. Using Data Mining to Predict Secondary School Student Performance. In A. Brito and J. Teixeira Eds., Proceedings of 5th FUture BUsiness TEChnology Conference (FUBUTEC 2008) pp. 5-12, Porto, Portugal, April, 2008, EUROSIS, ISBN 978-9077381-39-7. 
+[Web Link](http://www3.dsi.uminho.pt/pcortez/student.pdf)
+</blockquote>  
+```{r '1a - Load Data'}
+key <- tibble::tribble(
+~id,~name,~var,~type,~desc,
+1L, "school","student's school","binary","'GP' - Gabriel Pereira or 'MS' - Mousinho da Silveira)",
+2L,"sex","student's sex","binary","'F' - female or 'M' - male",
+3L,"age","student's age","numeric","from 15 to 22",
+4L,"address","student's home address type","binary","'U' - urban or 'R' - rural",
+5L,"famsize","family size","binary","'LE3' - less or equal to 3 or 'GT3' - greater than 3",
+6L,"Pstatus","parent's cohabitation status","binary","'T' - living together or 'A' - apart",
+7L,"Medu","mother's education","numeric","0 - none, 1 - primary education (4th grade), 2  5th to 9th grade, 3  secondary education or 4  higher education",
+8L,"Fedu","father's education","numeric","0 - none, 1 - primary education (4th grade), 2  5th to 9th grade, 3  secondary education or 4 â€“ higher education",
+9L,"Mjob","mother's job","nominal","'teacher', 'health' care related, civil 'services' (e.g. administrative or police), 'at_home' or 'other'",
+10L,"Fjob","father's job","nominal","'teacher', 'health' care related, civil 'services' (e.g. administrative or police), 'at_home' or 'other'",
+11L,"reason","reason to choose this school","nominal","close to 'home', school 'reputation', 'course' preference or 'other'",
+12L,"guardian","student's guardian","nominal","'mother', 'father' or 'other'",
+13L,"traveltime","home to school travel time","numeric","1 - <15 min., 2 - 15 to 30 min., 3 - 30 min. to 1 hour, or 4 - >1 hour",
+14L,"studytime","weekly study time","numeric","1 - <2 hours, 2 - 2 to 5 hours, 3 - 5 to 10 hours, or 4 - >10 hours",
+15L,"failures","number of past class failures","numeric","n if 1<=n<3, else 4",
+16L,"schoolsup","extra educational support","binary","yes or no",
+17L,"famsup","family educational support","binary","yes or no",
+18L,"paid","extra paid classes within the course subject (Math or Portuguese)","binary","yes or no",
+19L,"activities","extra-curricular activities","binary","yes or no",
+20L,"nursery","attended nursery school","binary","yes or no",
+21L,"higher","wants to take higher education","binary","yes or no",
+22L,"internet","Internet access at home","binary","yes or no",
+23L,"romantic","with a romantic relationship","binary","yes or no",
+24L,"famrel","quality of family relationships","numeric","from 1 - very bad to 5 - excellent",
+25L,"freetime","free time after school","numeric","from 1 - very low to 5 - very high",
+26L,"goout","going out with friends","numeric","from 1 - very low to 5 - very high",
+27L,"Dalc","workday alcohol consumption","numeric","from 1 - very low to 5 - very high",
+28L,"Walc","weekend alcohol consumption","numeric","from 1 - very low to 5 - very high",
+29L,"health","current health status","numeric","from 1 - very bad to 5 - very good",
+30L,"absences","number of school absences","numeric","from 0 to 93",
+31L,"G1","first period grade","numeric","from 0 to 20", 
+31L,"G2","second period grade","numeric","from 0 to 20",
+32L,"G3","final grade","numeric","from 0 to 20, output target")
+smat <- read.csv("~/Northeastern/Git/ppua5301/Homework 12/student/student-mat.csv", sep=";")
+smFac <- names(smat[sapply(smat,class) %in% c("factor") ])
+smInt <- names(smat[sapply(smat,class) %in% c("integer") ])
+```
+```{r '1a - Pairwise Graphing'}
+# ----------------------- Mon Mar 05 16:47:53 2018 ------------------------#
+# In my previous exploration of this dataset, I used a for loop to iteratively graph all of the different pairs of independent variables with the response variables in order to find pairs that had easily differentiable clusters for categorization with SVMs, quite time consuming. It's good to now learn about pairs.panels, a function that will now be indispensable! 
+library(psych)
+# From the description of the data, we know G1 & G2 are colinear with the response variable, so we can eliminate those as IVs (independent variables). If memory serves from the previous exploration of the data, studytime has a significant beta value in relation to DVs. I think previous failures also had some predictive value. I imagine absences will also play a role. Lastly, weekday alcohol consumption might have an influence.
+nvars <- append("G3",smInt[c(5,6,10,13)])
+psych::pairs.panels(smat %>% select(one_of(nvars)), density=T, lm=T, method="pearson", stars=T, ci=T)
+# ----------------------- Mon Mar 05 17:18:28 2018 ------------------------#
+# From this initial exploration it appears that the only IV with a significant influence on G3 is previous failures so we will use that in our model. Not surprisingly studytime, failures, and weekday alcohol consumption all seem to show significant correlation though only failures seems to substantially influence the final grade. Further, variable exploration is needed.
+fvars <- append("G3",smFac[c(2,12,15,17)])
+#Lets take a look at the DV in relation to some of the factors, namely sex, whether a student has tutoring, whether they aspire to continue into higher ed, and if they have a romantic relationship.
+psych::pairs.panels(smat %>% select(one_of(fvars)), density=T, lm=T, method="pearson", stars=T, ci=T)
+# It looks like an aspiration to continue into higher education and having a romantic relationship have statistically significant correlations. Thus that brings our total of meaningful variables for multiple linear regression to 3. One more is necessary to build the model.
+(nvars2 <- append("G3",smInt[(smInt %in% nvars)!=T][c(1:3,6,9)]))
+psych::pairs.panels(smat %>% select(one_of(nvars2)), density=T, lm=T, method="pearson", stars=T, ci=T)
+# It looks like age, as well as mother and father's education seem to have a correlation. That brings the total to 6 variables. A vector will be created below.
+IV <- c("failures","higher","romantic","age","Medu","Fedu")
+cat("G3~failures",IV[2:6],sep="+")
+lmformula <- "G3~failures+higher+romantic+age+Medu+Fedu"
+```
+</p>
+
+### 1b
+<div class='q'>(10 pts) Build a multiple regression model predicting final math grade (G3) using as many features as you like but you must use at least four. Include at least one categorical variables and be sure to properly convert it to dummy codes. Select the features that you believe are useful -- you do not have to include all features.
+</div>
+<p class='a'>
+```{r '1b'}
+summary(smat %>% select(one_of(IV)))
+# ----------------------- Mon Mar 05 18:11:53 2018 ------------------------#
+# Dummy coding the factors higher and romantic
+
+smat$higher <- factor(smat$higher,labels = c("no"=0,"yes"=1))
+smat$romantic <- factor(smat$romantic,labels = c("no"=0,"yes"=1))
+# lm model
+summary(smlm <- lm(lmformula, data=smat))
+# The significance asterisks indicate failures, romantic, and Medu are the most useful features in explaining G3.
+```
+</p>
+
+### 1c
+<div class='q'>(20 pts) Use stepwise backward elimination to remove all non-significant variables and then state the final model as an equation. State the backward elimination measure you applied (<em>p</em>-value, AIC, Adjusted R2). This <a href="https://www.youtube.com/watch?v=TzhgPXrFSm8&amp;t=434s" target="_blank">tutorial shows how to use various feature elimination techniques</a>.
+</div>
+<p class='a'>
+```{r '1c'}
+options(scipen=12)
+# ----------------------- Mon Mar 05 18:25:31 2018 ------------------------#
+# Select all with p-value < .05
+(svars <- names(summary(smlm)$coefficients[,'Pr(>|t|)'][summary(smlm)$coefficients[,'Pr(>|t|)'] < .05][2:4]))
+# ----------------------- Mon Mar 05 20:04:39 2018 ------------------------#
+# Use forward and backward stepwise variable selection to select variables
+fit.smlm <- step(smlm, direction="both")
+# It looks like Stepwise variable selection combining forward & backward directional methods selected the same variables as elimination by p-value significance when using AIC as the metric .
+```
+</p>
+
+### 1d
+<div class='q'>(10 pts) Calculate the 95% confidence interval for a prediction -- you may choose any data you wish for some new student.
+</div>
+<p class='a'>
+```{r '1d'}
+fit.smlm[["call"]]
+sum.bestsmlm <- summary(bestsmlm <- lm(formula = G3 ~ failures + romantic + Medu, data = smat))
+# ----------------------- Mon Mar 05 20:20:55 2018 ------------------------#
+#  Manual confidence interval for a prediction
+sum.bestsmlm$r.squared
+# The R^2 is rather low, so the interval is going to be very large due to a high SE
+cl <- .95
+(ci <- c("High"=predict(bestsmlm)[nrow(smat)] + qnorm((1-cl)/2+cl) * sum.bestsmlm[["sigma"]],"Low"=predict(bestsmlm)[nrow(smat)] - qnorm((1-cl)/2+cl) * sum.bestsmlm[["sigma"]]))
+abs(diff(ci))
+# A large interval
+# Confidence Interval for Beta coefficients
+confint(bestsmlm)
+```
+</p>
+
+### 1e
+<div class='q'>(10 pts) What is the <em>RMSE </em>for this model -- use the entire data set for both training and validation. You may find the <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/residuals.html" target="_blank"><em>residuals()</em> function</a> useful. Alternatively, you can inspect the model object, <em>e.g.</em>, if your model is in the variable <em>m</em>, then the residuals (errors) are in <em>m$residuals</em> and your predicted values (fitted values) are in <em>m$fitted.values</em>.
+</div>
+<p class='a'>
+```{r '1e'}
+# ----------------------- Mon Mar 05 20:45:59 2018 ------------------------#
+# Caret has a functon for root mean squared error
+caret::RMSE(bestsmlm$fitted.values,smat$G3)
+# It can also be done manually
+sqrt(mean(residuals(bestsmlm)^2))
+# In this way too
+sqrt(mean((bestsmlm$fitted.values-smat$G3)^2))
+```
+</p>
+
+## Problem 2 (40 Points)
+<div class='q'>For this problem, the following short tutorial might be helpful in interpreting the logistic regression output.
+</div>
+
+### 2a
+<div class='q'>(5 pts) Using the same data set as in Problem (1), add another column, PF -- pass-fail. Mark any student whose final grade is less than 10 as F, otherwise as P and then build a dummy code variable for that new column. Use the new dummy variable column as the response variable.
+</div>
+<p class='a'>
+```{r '2a'}
+pf <- function(x) {
+  out <- ifelse(x > 10,"P","F")
+  return(out)
+}
+lmat <- smat %>% rowwise %>% mutate(PF=pf(G3))
+lmat$PF <- factor(lmat$PF)
+lmat$nPF <- lmat$PF %>% as.numeric()-1
+table(lmat$PF)
+table(lmat$nPF)
+```
+</p>
+
+### 2b
+<div class='q'>(10 pts) Build a binomial logistic regression model classifying a student as passing or failing. Eliminate any non-significant variable using an elimination approach of your choice. <span style="color:rgb(85, 85, 85)">Use as many features as you like but you must use at least four -- choose the ones you believe are most useful.</span>
+</div>
+<p class='a'>
+```{r '2b'}
+# ----------------------- Mon Mar 05 21:35:16 2018 ------------------------#
+# Build a binomial logistic regression model with eleastic net
+library(caret)
+trControl <- caret::trainControl(method='repeatedcv',
+  number=4,
+  index=caret::createFolds(lmat, k=10), repeats = 2, p=.95, search="grid",verboseIter = T, allowParallel = T)
+
+library(doParallel)
+# make a cluster with 6 cores
+cl <- makeCluster(detectCores()-2,type="PSOCK")
+# register the number of parallel workers
+registerDoParallel(cl)
+# return number of parallel workers
+getDoParWorkers() 
+bestlog <- caret::train(PF~.-nPF-G3-G2-G1, data=lmat, method="glmnet", family="binomial",trControl=trControl, tuneGrid = expand.grid(alpha=seq(.1,1,.1),lambda=10^seq(-4,3,1)))
+bestlog.g <- caret::train(PF~.-nPF-G3, data=lmat, method="glmnet", family="binomial",trControl=trControl, tuneGrid = expand.grid(alpha=seq(.1,1,.1),lambda=10^seq(-4,3,1)))
+stopCluster(cl)
+DT::datatable(bestlog$results)
+bestlog$results[bestlog$results[,'Accuracy']==max(bestlog$results[,'Accuracy']),]
+# Show results of most accurate trial
+DT::datatable(bestlog.g$results)
+bestlog.g$results[bestlog.g$results[,'Accuracy']==max(bestlog.g$results[,'Accuracy']),]
+# Show results of most accurate trial
+options(scipen = 12)
+# Set scientific digits for display after 12 unts
+pval <- function(z) {
+  2*pnorm(-abs(z))
+}
+# ----------------------- Tue Mar 06 08:45:06 2018 ------------------------#
+# Display coefficients on both models
+bestlog.coef <- coef(bestlog$finalModel, bestlog$finalModel$lambdaOpt) %>% as.matrix()
+(bestlog.coef <- as.data.frame(bestlog.coef,stringsAsFactors = F) %>% cbind(Feat=rownames(bestlog.coef)) %>%  rename("Coef"="1") %>% mutate(pVal=as.vector(pval(scale(Coef)))) %>% arrange(pVal))
+# Previous failures appears to be the most influential feature as lasso regression retained only this variable.
+bestlog.gcoef <- coef(bestlog.g$finalModel, bestlog.g$finalModel$lambdaOpt) %>% as.matrix()
+(bestlog.gcoef <- as.data.frame(bestlog.gcoef,stringsAsFactors = F) %>% cbind(Feat=rownames(bestlog.gcoef)) %>%  rename("Coef"="1") %>% mutate(pVal=as.vector(pval(scale(Coef)))) %>% arrange(pVal))
+# It looks like including the grades precipitated the ridge regression model and retained all the variables, each showing little effect on the DV. Thus, no significant coefficients.
+
+
+# ----------------------- Mon Mar 05 22:17:50 2018 ------------------------#
+# Build a model using stepwise selection
+fullMod <- glm(nPF ~ . -G3-G2-G1-PF, data=lmat, family = "binomial")
+fullMod.g <- glm(nPF ~ . -G3-PF, data=lmat, family = "binomial")
+# This model doesn't converge - likely because G1 & G2 are colinear with G3 and predict it with absolute probability of 1
+step.Mod <- step(fullMod,direction = "both",trace=F)
+# Converged
+step.Mod.g <- step(fullMod.g,direction = "both",trace=F)
+# Did not converge here either
+# Show coefficients in the converged model:
+(step.Mod.gcoef <- data.frame(Feat=names(step.Mod[["coefficients"]]),Coef=step.Mod[["coefficients"]],pVal=pval(scale(step.Mod[["coefficients"]]))) %>% arrange(pVal))
+# Failures is less significant in the presence of other features. Notable is that a student with extra support is negatively correlated, as is attending nursery, having family support, going out on weekdays, and age. Mother's profession seems to have positive correlation.
+# ----------------------- Tue Mar 06 09:28:34 2018 ------------------------#
+# Determine which model is most accurate
+pf <- function(x) {
+  out <- ifelse(x > .5,"P","F")
+  return(out)
+}
+
+caret::confusionMatrix(predict(bestlog),lmat$PF)
+caret::confusionMatrix(pf(predict(glm(formula = PF ~ sex + age + Fedu + Mjob + studytime + failures + 
+    schoolsup + famsup + nursery + goout, family = "binomial", 
+    data = lmat),type="response")),lmat$PF)
+# It looks like the inclusion of the additional variables resulting from the stepwise variable selection resulted in a better model than the glmnet train. Surprising and noteworthy.
+```
+</p>
+
+### 2c
+<div class='q'>(5 pts) State the regression equation.
+</div>
+<p class='a'>
+<code>formula = PF ~ sex + age + Fedu + Mjob + studytime + failures + 
+    schoolsup + famsup + nursery + goout</code>
+</p>
+
+### 2d
+<div class='q'>(20 pts) What is the accuracy of your model? Use the entire data set for both training and validation.
+</div>
+<p class='a'>
+```{r '2d'}
+trControl <- caret::trainControl(method='repeatedcv',
+  number=4,
+  index=caret::createFolds(lmat, k=10), repeats = 4,p=1, search="grid",verboseIter = T, allowParallel = T)
+
+library(doParallel)
+# make a cluster with 6 cores
+cl <- makeCluster(detectCores()-2,type="PSOCK")
+# register the number of parallel workers
+registerDoParallel(cl)
+# return number of parallel workers
+getDoParWorkers() 
+bestglm <- caret::train(PF ~ sex + age + Fedu + Mjob + studytime + failures + schoolsup + famsup + nursery + goout, data=lmat, method="glm", family="binomial",trControl=trControl)
+stopCluster(cl)
+caret::confusionMatrix(predict(bestglm),lmat$PF)
+# The results using train are identical to using the glm formula out of the box.
+```
+</p>
+
+## Problem 3 (10 Points)
+<div class='q'>(8 pts) Implement the example from the textbook on pages 205 to 217 for the data set on white wines.(2 pts) Calculate the RMSE for the model.
+</div>
+
+### 3a
+<div class='q'>(8 pts) Implement the example from the textbook on pages 205 to 217 for the <a href="/uploads/8/6/5/9/8659576/whitewines.csv" target="_blank">data set on white wines</a>.
+</div>
+<p class='a'>
+```{r '3a'}
+# ----------------------- Tue Mar 06 18:02:28 2018 ------------------------#
+# Import data
+ww <- read.csv(file="whitewines.csv")
+# Structure of the data
+str(ww)
+# Graph the ratings
+ggplot2::qplot(ww$quality)
+# Looks normal
+shapiro.test(ww$quality)
+# Confirmed normal
+# ----------------------- Tue Mar 06 19:25:58 2018 ------------------------#
+# Outlier detection
+ww.ols <- sapply(ww,FUN=IQR)
+ww.q <- sapply(ww,quantile)
+ww.q[2,]-1.5*ww.ols
+ww.q[4,]+1.5*ww.ols
+ww.ols.bounds <- matrix(c(rbind(ww.q[2,]-1.5*ww.ols,ww.q[4,]+1.5*ww.ols)),ncol=2,byrow=T)
+numOLS <- vector()
+for (i in seq_along(ww)) {
+  numOLS[i] <- length(ww[,i][which(ww[,i] < ww.ols.bounds[i,1]|ww[,i] > ww.ols.bounds[i,2])])
+}
+# Number of outliers as defined by 1.5*IQR less than 1st quantile, and 1.5 more than 3rd quantile
+sum(numOLS)
+# Hopefully not a problem
+# ----------------------- Tue Mar 06 19:02:39 2018 ------------------------#
+# Create training data
+library(caret)
+train <- caret::createDataPartition(ww$quality,times=1,p=.75,list=F)
+ww.tr <- ww[train,]
+ww.te <- ww[-train,]
+library(rpart)
+# ----------------------- Tue Mar 06 21:30:39 2018 ------------------------#
+# Create the decision tree, dv: quality regressed on all ivs
+(m.rpart <- rpart(quality ~ ., data = ww.tr))
+summary(m.rpart) #Model detail
+library(rpart.plot)
+# create a decision tree diagram of the model. Type=4: Display separate split labels for left and right directions. extra = 101 display number obs and correct classification rate at each node. Fallen.leaves = F expecting a larger graph, don't display all leaves at hte botom. digits=3 num of sig figs. varlen=4: variable name length to 4 characters. box.palette: use a sequential color palette
+rpart.plot(m.rpart, digits = 3, type=4, extra=101, fallen.leaves = F, varlen = 4, box.palette = RColorBrewer::brewer.pal(5,"PuBuGn"))
+# ----------------------- Tue Mar 06 21:44:48 2018 ------------------------#
+# Make a prediction
+summary(ww.pred <- predict(m.rpart,newdata=ww.te))
+#Compare
+summary(ww.te$quality)
+# The prediction appears to be quite different - mostly in regards to accounting for outliers (as the mean/median are close to the same in both)
+# ----------------------- Tue Mar 06 21:58:13 2018 ------------------------#
+# Two ways to evaluate the performance
+cor(ww.pred,ww.te$quality) #Pearsons Correlation coefficient between predicted and actual
+printcp(m.rpart) # Shows relative errors with each splite and relative std deviation reductions with each split
+caret::MAE(ww.pred,ww.te$quality) #mean absolute error from caret
+# mean of the test set
+mean(ww.te$quality)
+# ----------------------- Tue Mar 06 22:03:12 2018 ------------------------#
+# The MAE if we used the central tendency
+caret::MAE(mean(ww.te$quality),ww.te$quality)
+# The difference in performance
+abs(caret::MAE(ww.pred,ww.te$quality)-caret::MAE(mean(ww.te$quality),ww.te$quality))/caret::MAE(mean(ww.te$quality),ww.te$quality)
+# Only ~9% better than the central tendency
+# ----------------------- Tue Mar 06 22:05:37 2018 ------------------------#
+# To improve the model, let's create a model tree and view the stats on it.
+library(RWeka)
+(m.m5p <- M5P(quality ~ ., data = ww.tr)) %>% print %>% summary
+# It performs better than the decision tree with correlation coefficient being higher and MAE being lower.
+# ----------------------- Tue Mar 06 22:12:12 2018 ------------------------#
+# Make a prediction with the model and examine the spread of data. 
+(ww.m5p.pred <- predict(m.m5p,newdata = ww.te)) %>% summary 
+# The min is far lower (and quite off). The max is closer to the test data actual max.
+cor(ww.m5p.pred,ww.te$quality)
+# The correlation is marginally improved
+# We saw the MAE earlier in the summary output, so we will see what the comparison is to the decision tree
+abs(caret::MAE(ww.m5p.pred,ww.te$quality)-caret::MAE(ww.pred,ww.te$quality))/caret::MAE(ww.m5p.pred,ww.te$quality)
+# ~7% improvement
+```
+</p>
+
+### 3b
+<div class='q'>(2 pts) Calculate the RMSE for the model.
+</div>
+<p class='a'>
+```{r '3b'}
+# ----------------------- Tue Mar 06 22:26:28 2018 ------------------------#
+# Using caret
+caret::RMSE(ww.m5p.pred,ww.te$quality)
+# The model comparison
+abs(caret::RMSE(ww.m5p.pred,ww.te$quality)-caret::RMSE(ww.pred,ww.te$quality))/caret::RMSE(ww.m5p.pred,ww.te$quality)
+# (-_-)
+```
+</p>
