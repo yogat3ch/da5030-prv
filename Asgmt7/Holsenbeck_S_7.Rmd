@@ -1,0 +1,162 @@
+---
+title: "Holsenbeck_S_7"
+author: "Stephen Synchronicity"
+date: '`r format(Sys.time(), "%Y-%m-%d")`'
+always_allow_html: yes
+header-includes:
+   - \usepackage{dcolumn}
+output: 
+  html_document: 
+    self_contained: yes
+    css: C:\Users\Stephen\Documents\R\win-library\3.4\neuhwk\rmarkdown\templates\DA5030\resources\bootstrap.min.css
+    highlight: zenburn
+    keep_md: no
+    theme: spacelab
+    toc: no
+---
+```{r setup, include=FALSE}
+# Knitr Options
+knitr::opts_chunk$set(echo = TRUE, message=FALSE,warning=FALSE,cache=TRUE, fig.align='center', fig.height=5.5, fig.width=8, tidy=TRUE, tidy.opts=list(width.cutoff=80))
+library(knitr)
+knit_print.data.frame = function(x, ...) {
+    res = paste(c("", "", kable(x)), collapse = "\n")
+    asis_output(res)
+}
+options(scipen=12)
+# Attach dependencies
+rmarkdown::html_dependency_jquery()
+rmarkdown::html_dependency_bootstrap("spacelab")
+rmarkdown::html_dependency_jqueryui()
+# Make reproducible
+set.seed(1)
+# Load packages
+req.packages <- c("tidyverse","dplyr","htmltools","magrittr")
+for (q in seq_along(req.packages)) {
+  suppressPackageStartupMessages(library(req.packages[q],character.only = T))
+}
+```
+```{r 'Assignment',eval=F}
+# This code will extract the assignment HTML and print the output formatted for this Rmd document. Set Assignment html below
+# Use if assignment has blue font headers, and lists of questions
+library(rvest)
+Q <- xml2::read_html("https://da5030.weebly.com/assignment-7.html") %>% rvest::html_nodes(xpath="//font[contains(@color,'#24678d')]/ancestor::div[1]") %>% rvest::html_children()
+Qs <- vector("list",sum(stringr::str_detect(Q,"Problem")))
+for(i in seq_along(Q)){
+ if(Q[i] %>% html_text() %>% stringr::str_detect("Problem")){
+  n <- Q[i] %>% html_text() %>% stringr::str_extract("(?<=Problem\\s)\\d") %>% as.numeric
+  Qs[[n]][['h1']] <- paste("#",rvest::html_text(Q[i]),"\n")
+  print( Qs[[n]][['h1']])
+ next}else if(rvest::html_attrs(Q[i]) %>% grepl("paragraph",.,ignore.case = T) & html_children(Q[i]) %>% html_attrs() %>% grepl("rgb\\(85",.,ignore.case = T)){
+    Qs[[n]][['q']] <- paste("<div class='q'>",html_text(Q[i]),"</div>\n```{r  '",n,"'}\n```\n<p class='a'></p>\n\n",sep="")
+ }else {next}
+  
+  if(n == length(Qs)){break}
+}
+# grep(pattern=substr(html_text(n),1,20),x=xml_parent(n),ignore.case = T)
+# Qtext <- xml2::read_html("https://da5030.weebly.com/assignment-7.html") %>% rvest::html_nodes(xpath="//font[contains(@color,'#24678d')]/ancestor::div[1]/following-sibling::div[contains(@class,'paragraph')][1]")
+# Q.form <- vector("list",length(Q))
+# for (i in seq_along(Q)) {
+#  Q.form[[i]] <- list(title=NA,Qs=NA)
+#   Q.form[[i]][["title"]] <- Q[i] %>% rvest::html_node(css="font") %>% rvest::html_text() %>% paste("# ",.,"\n",sep="") 
+#    if(length(Qtext)>0){
+#     li <- xml2::xml_contents(Qtext[[i]]) %>% xml2::xml_children() %>% rvest::html_text()
+#     for (l in seq_along(li)) {
+#     Q.form[[i]][['Qs']][l] <- paste("## ",i,letters[l],"\n<div class='q'>",li[l],"\n</div>\n```{r '",i,letters[l],"'}\n```\n<p class='a'>\n</p>",sep="")
+#     }
+#    }else {
+#      
+#    }
+# }
+lapply(Qs, FUN="cat",sep='\n')
+detach("package:rvest")
+```
+# Problem 1 
+
+<div class='q'>Build an R Notebook of the concrete strength example in the textbook on pages 232 to 239. Show each step and add appropriate documentation.</div>
+```{r  '1 Load Data'}
+# ----------------------- Sat Mar 24 16:02:47 2018 ------------------------#
+# Load Data
+cs <- read.csv("concrete.csv")
+str(cs)
+# Evaluate normality
+psych::pairs.panels(cs)
+# About 5 look normal, while 4 look skew
+# ----------------------- Sat Mar 24 16:20:23 2018 ------------------------#
+# min max normalization function will work better because 4/9 features are not normally distributed.
+normalize <- function(x) { 
+  return((x - min(x)) / (max(x) - min(x)))
+}
+# Apply min-max normalizations to all columns. 
+cs.norm <- as.data.frame(lapply(cs, normalize))
+# Verify that it worked.
+cs$strength %>% summary
+cs.norm$strength %>% summary
+# ----------------------- Sat Mar 24 16:30:37 2018 ------------------------#
+# Test and training data sets
+cs.train <- cs.norm[1:773, ]
+cs.test <- cs.norm[774:1030, ]
+# install.packages("neuralnet")
+# ----------------------- Sat Mar 24 17:36:38 2018 ------------------------#
+# Train a net with the default 1 neuron in the hidden layer
+
+library(neuralnet)
+cs.model <- neuralnet(formula = strength ~ cement + slag + ash + water + superplastic + coarseagg + fineagg + age, data = cs.train)
+# Visualize the outcome
+plot(cs.model)
+# Age>cement>slag. SSE:~5.08
+# Make a prediction
+cs.pred <- compute(cs.model, cs.test[-9])
+# Evaluate the Pearson correlation of the prediction with the actual
+cor(cs.pred$net.result,cs.test$strength)
+# ----------------------- Sat Mar 24 17:46:25 2018 ------------------------#
+# Change the number of layers in an iterative fashion, determine optimal number of neurons in hidden layer
+n <- 1:10
+tune <- vector()
+for (i in n) {
+  cs.model <- neuralnet(formula = strength ~ cement + slag + ash + water + superplastic + coarseagg + fineagg + age, data = cs.train, hidden = i)
+  cs.pred <- compute(cs.model, cs.test[-9])
+  tune[i] <- cor(cs.pred$net.result,cs.test$strength)
+}
+# plot the relationship of neurons in hidden layer to the accuracy of the prediction
+plot(x=1:length(tune),y=tune, type="b", main = "Number of neurons in hidden layer v Prediction Accuracy")
+text(1:length(tune),tune,labels=round(tune,3),adj=c(1,0))
+# Equivalent performance at 5 & 8, with 10 showing about ~1.5% improvement
+# Top performancing model
+c(which.max(tune),tune[which.max(tune)])
+plot(cs.model)
+# Yikes
+# It looks like there are various algorithms with which computations can be made. We will try two of the other algorithms here and see how they perform
+# runs <- expand.grid(algo=c('sag',  'slr'),
+# n=c(8,10))
+# ----------------------- Sat Mar 24 18:11:56 2018 ------------------------#
+# To improve the speed at which it executes we can just compare errors
+# mods <- vector("list",nrow(runs))
+# for (i in 1:nrow(runs)) {
+#     mods[[i]] <- neuralnet(formula = strength ~ cement + slag + ash + water + superplastic + coarseagg + fineagg + age, data = cs.train, hidden = runs[i,'n'], algorithm = runs[i,'algo'], threshold= .01)
+#   tune[i] <- mods[[i]]$result.matrix['error',]
+# }
+# tune <- lapply(mods,function(x){
+#   cs.pred <- compute(x,cs.test[-9])
+#   cor(cs.pred$net.result,cs.test$strength)
+#   })
+# ----------------------- Sat Mar 24 18:42:49 2018 ------------------------#
+# Only the first model seemed to work properly and provide an error.
+
+```
+<p class='a'>The weights in this implementation provide the user with a better understanding of how much correlation each attribute has with the response variable. I am interested to know how one might be able to customize the function in each neuron of the a hidden layer. To use stock indicators as an example, one neuron might be an RSI (relative strength indicator), one an SMA (simple moving average), another would be an DM+ - DM- (directional momentum up or down compared to one another), and lastly a parabolic SAR (stop and reverse). I suppose one could compute each value as a column in an extended timeseries object, convert that to a dataframe, and then run the neural net on the df.</p>
+
+
+# Problem 2 
+
+<div class='q'>Build an R Notebook of the optical character recognition example in the textbook on pages 249 to 257. Show each step and add appropriate documentation.</div>
+```{r  '2'}
+```
+<p class='a'></p>
+
+
+# Problem 3 
+
+<div class='q'>Build an R Notebook of the grocery store transactions example in the textbook on pages 266 to 284. Show each step and add appropriate documentation.</div>
+```{r  '3'}
+```
+<p class='a'></p>
