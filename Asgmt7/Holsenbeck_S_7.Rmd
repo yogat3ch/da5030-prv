@@ -150,13 +150,123 @@ plot(cs.model)
 
 <div class='q'>Build an R Notebook of the optical character recognition example in the textbook on pages 249 to 257. Show each step and add appropriate documentation.</div>
 ```{r  '2'}
+# ----------------------- Sat Mar 24 20:35:45 2018 ------------------------#
+# Read Data
+letters <- read.csv("letterdata.csv")
+str(letters)
+# divide into training and test data
+letters.train <- letters[1:16000, ]
+letters.test  <- letters[16001:20000, ]
+# ----------------------- Sat Mar 24 20:42:34 2018 ------------------------#
+# Create a model
+library(kernlab)
+svm.linear.time <- system.time({letter.classifier <- ksvm(letter ~ ., data = letters.train,
+                          kernel = "vanilladot")
+# The results of printing the object directly are quite verbose, so we will print the error here, which we can hopefully use to calibrate future models.
+letter.classifier@error
+cM <- caret::confusionMatrix(predict(letter.classifier, letters.test),letters.test$letter)})
+cM$overall
+# The prediction indicates an accuracy of ~84%
+# ----------------------- Sat Mar 24 20:50:26 2018 ------------------------#
+# Use a different kernel to improve accuracy
+svm.radial.time <- system.time({letter.classifier.rbf <- ksvm(letter ~ ., data = letters.train, kernel = "rbfdot")
+cM.rbf <- caret::confusionMatrix(predict(letter.classifier.rbf, letters.test),letters.test$letter)})
+cM.rbf$overall
+(cM.rbf$overall[1]-cM$overall[1])/cM$overall[1]
+# About an 11% improvement in accuracy
+svm.linear.time
+svm.radial.time
+(svm.radial.time[3]-svm.linear.time[3])/svm.linear.time[3]
+# With a cost of about ~11x the time to compute. Worth taking into consideration if we were to use larger datasets.
 ```
-<p class='a'></p>
+<p class='a'>Let's set up an optimization using caret.</p>
+```{r '2 caret',eval=F}
+library(caret)
+ltr.train <- createDataPartition(letters$letter,times=1,p=.8)
+ltr.train <- trainControl(method="repeatedcv",repeats=1,index=ltr.train, verboseIter = T, allowParallel = T)
+
+# svmRadial.time <- system.time(ltr.mod <- train(letter~.,data=letters,method="svmRadial",tuneLength=9,metric="Kappa",trCtrl=ltr.train))
+
+library(doParallel)
+# make a cluster with all possible threads (not cores)
+cl <- makeCluster(detectCores()-1)
+# register the number of parallel workers (here all CPUs)
+registerDoParallel(cl)
+# return number of parallel workers
+getDoParWorkers() 
+svmRadial.par.time <- system.time(ltr.par.mod <- train(letter~.,data=letters,method="svmRadial",tuneLength=8,metric="Accuracy",trCtrl=ltr.train))
+# insert parallel calculations here
+# stop the cluster and remove  Rscript.exe childs (WIN)
+stopCluster(cl)
+registerDoSEQ()
+train.results <- list(Time=svmRadial.par.time,Model=ltr.par.mod)
+save(train.results,file="svmRadial.RData")
+```
+```{r '2 svmRadial'}
+load("svmRadial.RData")
+svmRadial.par.time <- train.results$Time
+ltr.par.mod <- train.results$Model
+svmRadial.par.time
+svmRadial.par.time[3]/3600 # Hours
+svm.radial.time
+# ----------------------- Tue Mar 27 14:28:03 2018 ------------------------#
+# The time involved to train the model with caret took approximately 81 times as long
+(svmRadial.par.time[3]-svm.radial.time[3])/svm.radial.time[3]
+# The best tune
+ltr.par.mod$bestTune
+# Model validation
+cM.par <- caret::confusionMatrix(predict(ltr.par.mod$finalModel,newdata=letters.test[,-1],type="response"),letters.test$letter)
+cM.par$overall
+# 99.5 % accuracy - possibly overfitted, but excellent accuracy nonetheless.
+(cM.par$overall[1]-cM$overall[1])/cM$overall[1] # ~ 19% improvement over the linear model
+(cM.par$overall[1]-cM.rbf$overall[1])/cM.rbf$overall[1] # ~7% improvement over the single train radial model
+```
+
 
 
 # Problem 3 
 
 <div class='q'>Build an R Notebook of the grocery store transactions example in the textbook on pages 266 to 284. Show each step and add appropriate documentation.</div>
 ```{r  '3'}
+# ----------------------- Tue Mar 27 14:58:23 2018 ------------------------#
+# Load Data
+library(arules)
+groceries <- arules::read.transactions("groceries.csv", sep = ",")
+summary(groceries)
+# View the first 5
+inspect(groceries[1:5])
+# View ordered Item frequencies in the top quantile
+groc.iF <- itemFrequency(groceries)
+(groc.q3 <- groc.iF[groc.iF > quantile(groc.iF)[4]][order(groc.iF[groc.iF > quantile(groc.iF)[4]],decreasing=T)])
+# Visualize the frequencies with support greater than 10%
+itemFrequencyPlot(groceries, support = 0.1) # This matches the output above
+# Generate a Pareto bar graph of the top 20 items with the most support
+itemFrequencyPlot(groceries, topN = 20) 
+# Visualize the sparse data matrix top 10
+image(groceries[1:10])
+# Useful for determining if there is some repetitive value (that's not a transaction item) in the dataset that shouldn't be there. Also useful for noticing seasonal patterns if the data is sorted by timeseries.
+# Visualize 100 randomly selected rows
+image(sample(groceries, 100)) # Vertical patterns (popular items) are notably easier to spot.
+# Skipping the error run of apriori because thresholds are set at default and don't return any rules.
+support(groceries,transactions = groceries) %>% quantile
+# ----------------------- Tue Mar 27 15:41:40 2018 ------------------------#
+# It looks like our third quantile of support begins at .013, so we will set our support threshold for the apriori there
+sup.trshld <- support(groceries,transactions = groceries) %>% quantile %>% .[4]
+# We will stick with the example exercise value for the confidence threshold
+# minlen = 2 makes it such that at least 2 items must appear in a rule
+groceryrules <- apriori(groceries, parameter = list(support =
+                          sup.trshld, confidence = 0.25, minlen = 2))
+groceryrules %>% summary # 101 rules
+# Noteable is that with the higher threshold here, the rules that qualified contained at max 3 items.
+# ----------------------- Tue Mar 27 16:01:23 2018 ------------------------#
+# Inspect the rules with the top 10% of lift, sorted by lift
+
+inspect(sort(groceryrules[groceryrules@quality[["lift"]] > qnorm(.9,mean(groceryrules@quality[["lift"]]),sd(groceryrules@quality[["lift"]]))],by="lift",decreasing = T))
+# These are likely to be actionable
+# Let's see what gets bought with vegetables or fruit
+(vegfrurules <- subset(groceryrules,items %pin% c("fruit")|items %pin% c("vegetables")))
+inspect(sort(vegfrurules[vegfrurules@quality[["lift"]] > qnorm(.90,mean(vegfrurules@quality[["lift"]]),sd(vegfrurules@quality[["lift"]]))],by="lift",decreasing = T))
+# Convert to dataframe
+vegfrurules %<>% as(Class="data.frame")
 ```
-<p class='a'></p>
+<p class='a'>It's interesting to learn about the formula behind the "Customers who bought this item also bought" feed on many online retailers. With regards to usage, subsetting takes some experimentation to achieve the expected results. I can see how association rules might also have usefulness in text-analysis showing words that are often associated in the same sentence with one another.</p>
