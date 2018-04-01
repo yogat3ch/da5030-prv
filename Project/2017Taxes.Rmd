@@ -1,0 +1,380 @@
+---
+title: "2017 Taxes"
+author: "Stephen Synchronicity"
+date: '`r format(Sys.time(), "%Y-%m-%d")`'
+always_allow_html: yes
+header-includes:
+   - \usepackage{dcolumn}
+output: 
+  html_document: 
+    self_contained: yes
+    css: C:\Users\Stephen\Documents\R\win-library\3.4\neuhwk\rmarkdown\templates\report\resources\bootstrap.min.css
+    highlight: zenburn
+    keep_md: no
+    theme: spacelab
+    toc: yes
+    toc_float: true
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE,warning=FALSE,cache=TRUE, fig.align='center', fig.height=3.5, fig.width=5, tidy=TRUE, tidy.opts=list(width.cutoff=80))
+rmarkdown::html_dependency_jquery()
+rmarkdown::html_dependency_bootstrap("spacelab")
+rmarkdown::html_dependency_jqueryui()
+set.seed(1)
+options(scipen=12)
+req.packages <- c("tidyverse","dplyr","htmltools","magrittr")
+for (q in seq_along(req.packages)) {
+  suppressPackageStartupMessages(library(req.packages[q],character.only = T))
+}
+```
+
+# Introduction
+<div class="q">Describe the data set, what you plan to do in each phase of CRISP-DM, and the models you expect to build, evaluate, and apply.</div>
+## Business Understanding
+### Background
+<p>I've been working as a freelance web & graphic designer, event coordinator, yoga teacher & studio manager, and administrative consultant for the past few years. It was extremely challenging to make ends meet in the place where I was living, coming close to homelessness on more than one occasion. If it wasn't for the forethought of my parents financial planning and generosity on my parent's part I would definitely be living on the streets.</p>
+<p>In the past two years I learned a great deal about operating my own business more effectively by putting together detailed contracts and securing 4 multiple simultaneous clients at any given time. In filling the 4 client quota, I didn't have to rely on any particular client for work at a given time, and thus in aggregate, work flowed at a steadier rate. The location in which I lived exhibited major seasonal shifts in workload because it is heavily reliant on the tourism industry, but time management paired with a cycling through projects by part of the week served to juggle the stream of work from each of the respective clients such that weekly progress was being realized all projects.</p>
+<p>The revenue streams reached a point where the business became profitable, and it came time to do taxes. This was an arduous process, despite meticulous digital record keeping, largely because of the byzantine forms and system into which taxes must be paid. However, navigating it manually lead to some familiarity with the necessary steps involved and where record-keeping could be improved to allow for automation in future years. Thus I developed a record keeping system suitable for tracking business related expenses better such that deductions were easier to extract from the record of expenses.</p>
+<p>This year is the first year in which, through the data analytics program, I will be able to use machine learning techniques to make this process more efficient and will also be able to use some projection and forecasting techniques to better understand seasonal trends and indicators in the expense record such that I can better understand and adapt in future years.</p>
+### Business Objectives
+<p>The primary objective over the years has been to budget well and live within the financial constraints set forth by the budget process. This process helped me to become realistic about what my basic needs are and what a baseline cost looked like for the area I was living in. It provided a challenge through which I learned to work with minimal resources and become especially efficient at making them stretch much farther than I ever had previously. It also allowed me a space in which to grow spiritually and find that life is much more full when one steps off of the material accumulation treadmill.</p>
+<p>My objectives with this expense data exploration are to:
+<ul>
+  <li>Find a means of making the tax filing process easier by leveraging machine learning techniques learned in DA 5030.</li>
+  <li>Create projections for future years based on data from previous years</li>
+  <li>Discern differences in expenses with the relocation for school</li>
+  <li>Find clusters of expense records that can serve as indicators where improvements can be made to budgeting/spending.</li>
+  <li>(If time allows) to develop a tool for better selecting well-performing stock options to bolster the self-managed stock portfolio that is currently paying for this course education.</li>
+</ul> </p>
+### Business Success Criteria
+<p>The success criteria were, and still are:</p>
+<ul>
+   <li>to stay within budgetary constraints: avoid overspending and consequent extreme constriction on spending.</li>
+   <li>to identify signals that project future overspending, such that mechanisms can be put into place to avoid future occurences.</li>
+   <li>to create accurate forecasts for planning purposes</li>
+   <li>(If time allows) to prototype a tool for making wise stock-selection and buy/sell decisions</li>
+ </ul>  
+## Data Understanding
+
+
+# Load Data
+```{r 'Load Data'}
+em <- readr::read_csv("C:\\Users\\Stephen\\Documents\\Finance\\Taxes\\2017\\2018-03-31.expensemanager.csv")
+em$Date %<>% lubridate::ymd() # Convert data to Date
+em <- em[-1,] # Remove duplicate titles
+em2017 <- em[em$Date > lubridate::ymd("2017-01-01") & em$Date < lubridate::ymd("2018-01-01"),] # Extract only data for 2017
+em$Amount %<>% as.numeric() # Convert amounts to numeric
+
+# ----------------------- Fri Mar 23 18:42:21 2018 ------------------------#
+# USAA
+usaa <- readr::read_csv("C:\\Users\\Stephen\\Documents\\Finance\\Taxes\\2017\\USAA\\USAAChecking2017.csv",col_names = F) # Read Transaction data from Checking acct
+usaa  <- usaa[,-c(1,2,4)] # Remove useless columns
+names(usaa) <- c("Date","Desc","Category","Amt") #Rename columns to intuitive names
+usaa$Amt %<>% gsub("\\-\\-","",.) # Remove the double negative signs for positive values
+usaa$Amt %<>% as.numeric() # Convert to numeric
+usaa.visa <- readr::read_csv("C:\\Users\\Stephen\\Documents\\Finance\\Taxes\\2017\\USAA\\USAAVisa.csv",col_names = F) # Read transaction data from Visa
+usaa.visa  <- usaa.visa[,-c(1,2,4)] # Remove Useless columns
+names(usaa.visa) <- c("Date","Desc","Category","Amt") # Add intuitive names
+usaa.visa$Amt %<>% gsub("\\-\\-","",.) # Change double neg to pos
+usaa.visa$Amt %<>% as.numeric() # Convert to numeric
+#visa.deductible <- edit(usaa.visa %>% group_by(Desc) %>% summarise(TotalAmt=sum(Amt)))
+# ----------------------- Fri Mar 23 21:40:36 2018 ------------------------#
+# Deductible Expenses Reference from Intuit 
+htm <- xml2::read_html("https://quickbooks.intuit.com/r/professional/complete-list-of-self-employed-expenses-and-tax-deductions/")
+Deductibles <- htm %>% rvest::html_node(xpath="//*[@id='main']/div/div[3]/div/div[1]/div[1]/div/div/div/div/div/div/table[1]") %>% rvest::html_table(header=T)
+Deductibles %<>% rbind(htm %>% rvest::html_node(xpath="//*[@id='main']/div/div[3]/div/div[1]/div[1]/div/div/div/div/div/div/table[2]") %>% rvest::html_table(header=T))
+# ----------------------- Fri Mar 30 21:12:36 2018 ------------------------#
+# Import shared expenses from Google Sheets
+#googlesheets::gs_auth()
+# lsbalance <- googlesheets::gs_url("https://docs.google.com/spreadsheets/d/1e_iiwJ6HEXXEbpjEXj1FKohs6tWsXw2r9nurrZSxZmQ/edit#gid=504516022")
+# shared.expenses <- googlesheets::gs_read(lsbalance,ws=2,range="A1:E192")
+```
+```{r 'Add Shared Expenses to Expense Manager Data'}
+shared.expenses$Date %<>% lubridate::ymd()
+names(shared.expenses)[4:5]
+shared.expenses[4:5] %<>% lapply(function(x)gsub("\\$","",x)) %>%  lapply(as.numeric)
+shared.expenses<- edit(shared.expenses)
+shared.expenses$Category[is.na(shared.expenses$Category)] <- "Food"
+shared.expenses$Subcategory[is.na(shared.expenses$Subcategory)] <- "Groceries"
+shared.expenses$`Payment Method` <- "Lia"
+names(shared.expenses) <- c("Date","Description","Qty","Cost","Amount","Category","Subcategory","Payment Method")
+shared.expenses %>% write.csv("shared.expenses")
+#  em2017 <- plyr::rbind.fill(em2017,shared.expenses[,c("Date","Description","Amount","Category","Subcategory","Payment Method")])
+# em2017$Date %<>% lubridate::ymd() # Convert data to Date
+```
+
+# Income
+## Capital Gains Liquidation for Tuition Payments
+```{r 'Sep 2017 Tuition CGMFX'}
+cgmfx.costbasispershare <- 60.95
+cgmfx.Sep.tx <- c(Proceeds=12646.47,Shares=254.900)
+cmgfx.Sep.cb <- cgmfx.costbasispershare * cgmfx.Septx['Shares'] # Cost basis for tx
+cgmfx.Sep.tx['Proceeds'] - cmgfx.Sepcb # Gain/Loss
+```
+
+## Self-Employment Income
+```{r 'Reload EM Data with handpicked Deductions' }
+# googlesheets::gs_auth()
+ # em2017 <- googlesheets::gs_url("https://docs.google.com/spreadsheets/d/1rec4HN6L6oGMAHnmw5p-HYj44IgfsULQYGwNStp6xuY/edit#gid=0")
+ #  em2017 %<>% googlesheets::gs_read(ws=1,range="A1:J439")
+ #  em2017 %>% write.csv("em2017.csv")
+em2017 <- read.csv("em2017.csv")
+rownames(em2017) <- em2017[,1] 
+em2017 <- em2017[,-1]
+```
+```{r 'Filter Income'}
+inc2017 <- em2017 %>% filter(Category=="Income") %>% group_by(`Payee/Payer`,Account) %>% summarise(Total=sum(Amount)) 
+```
+```{r 'Self-Employment Income'}
+Income <- c(Veda=1083.16,Nico=984.69,HeWo=2221.48)
+sum(Income) #Total Self-employment income
+```
+
+# Expense Deductions
+## Business Expenses
+<a href="https://www.irs.gov/instructions/i1040sc" target="_blank">1040SC Profit or Loss from Business Instructions</a>
+```{r 'Create test and train data'}
+names(em)
+colnames(em)[c(5,8)] <- c("Payment.Method","Payee.Payer")
+em.test <- em[em$Date > lubridate::ymd("2017-12-31"),names(em) %in% names(em2017)] 
+# There are too many levels in Description, omitting
+em.test %<>% .[,names(em.test) !="Description"]
+em2017$Deductible %<>% as.factor()
+em2017$Date %<>% lubridate::mdy() 
+em17.tr <- em2017 %>% filter(Category!="Income") %>% dplyr::select(-Description)
+```
+```{r 'Combine and Replace NA'}
+em.te.tr <- plyr::rbind.fill(em.test,em17.tr)
+em.te.tr$Date %<>% lubridate::ymd() 
+(emna <- em.te.tr %>% lapply(function(x)any(is.na(x))) %>% unlist)
+renamena <- function(x){
+  sapply(x,function(i){ifelse(is.na(i),"None",i)})
+}
+em.te.tr[,emna] %<>% lapply(renamena)
+em.te.tr$Deductible[em.te.tr$Deductible=="None"] <- 1
+em.te.tr[,sapply(em.te.tr,is.character)] %<>% lapply(as.factor)
+```
+```{r 'Split into Test and Train with FActor Parity'}
+em17.tr <- em.te.tr[em.te.tr$Date > lubridate::ymd("2017-01-01") & em.te.tr$Date < lubridate::ymd("2017-12-31"),]
+em.test <- em.te.tr[em.te.tr$Date > lubridate::ymd("2017-12-31"),]
+```
+
+```{r 'Convert date to decimal'}
+# Convert Date to just the decimal_date part of the year for density bins used in classifiers
+dd <- function(x){abs(lubridate::year(x)-lubridate::decimal_date(x))}
+em.test$Date %<>% sapply(dd)
+em17.tr$Date %<>% sapply(dd)
+```
+
+
+```{r 'Train NB on 2017 Coded Data'}
+library(caret)
+
+em2017.train <- createDataPartition(em17.tr$Deductible,times=2,p=.9,list=T)
+em2017.train <- trainControl(method="repeatedcv",index=em2017.train,number=5,repeats=1,search = "grid",verboseIter = T,allowParallel = T)
+
+#kernlab::sigest(Deductible ~ .,data=em17.tr)
+#em.2017.mod <- train(Deductible ~ . , data=em17.tr, method="svmRadial", na.action="na.pass", metric="Accuracy",tuneLength=10,trCtrl=em2017.train)
+# ----------------------- Sat Mar 31 20:12:08 2018 ------------------------#
+# Throwing error `contrasts<-`(`*tmp*`, value = contr.funs[1 + isOF[nn]]) : 
+# contrasts can be applied only to factors with 2 or more levels
+
+# em.lvls <- purrr::map2(.x=sapply(em17.tr[,sapply(em17.tr,is.factor)],levels),.y=sapply(em.test,levels), .f=function(.x,.y){
+#   c(.x,.y) %>% unique
+# })
+# em.lvls[['Date']] <- NULL
+# em.lvls[['Amount']] <- NULL
+# em.fac <- names(em.lvls)
+# for(v in seq_along(em.fac)){
+#   em17.tr[[em.fac[v]]] %<>% as.factor
+#   em.test[[em.fac[v]]] %<>% as.factor
+#  levels(em17.tr[[em.fac[v]]]) <- em.lvls[[em.fac[v]]]
+#  levels(em.test[[em.fac[v]]]) <- em.lvls[[em.fac[v]]]
+# }
+#
+#-------- Does not properly merge factors ------#
+# ----------------------- Sat Mar 31 21:51:34 2018 ------------------------#
+# Merge test and train data and recompute factors for consistency in factor levels
+
+
+# ----------------------- Sat Mar 31 20:51:18 2018 ------------------------#
+# LEt's see if this resolved it
+em.2017.mod <- train(Deductible ~ . , data=em17.tr, method="svmRadial", na.action="na.pass", metric="Accuracy",tuneLength=10,trCtrl=em2017.train)
+#Works
+# ----------------------- Sat Mar 31 20:56:12 2018 ------------------------#
+# Let's try some additional methods
+
+library(doParallel)
+# make a cluster with all possible threads (not cores)
+cl <- makeCluster(detectCores()-1)
+# register the number of parallel workers (here all CPUs)
+registerDoParallel(cl)
+getDoParWorkers() 
+# insert parallel calculations here
+
+em.2017.svmRad <- train(Deductible ~ . , data=em17.tr, method="svmRadial", na.action="na.pass", metric="Accuracy",tuneLength=10,trCtrl=em2017.train)
+# ----------------------- Sat Mar 31 20:53:10 2018 ------------------------#
+# A boosted logistic regression
+em.2017.LB <- train(Deductible ~ . , data=em17.tr, method="LogitBoost", na.action="na.pass", metric="Accuracy",tuneLength=10,trCtrl=em2017.train)
+# ----------------------- Sat Mar 31 20:53:55 2018 ------------------------#
+# And Naive Bayes
+em.2017.nB <- train(Deductible ~ . , data=em17.tr, method="nb", na.action="na.pass", metric="Accuracy",tuneGrid=expand.grid(fL=c(0,1),usekernel=T,adjust=c(.1,.5,1)),trCtrl=em2017.train)
+# stop the cluster and remove  Rscript.exe childs (WIN)
+stopCluster(cl)
+registerDoSEQ()
+em.2017.mods <- list(em.2017.svmRad,em.2017.LB,em.2017.nB)
+lapply(em.2017.mods,FUN=function(x){
+  purrr::pluck(x,list("results","Accuracy"))
+})
+```
+
+<p>It appears that the best model is the boosted logistic regression model. This makes sense given that the classification involves a binary classification, namely whether an entry is deductible or not. The boosting algorithm additionally adds predictive power, making it a bit more accurate than the radial SVM.</p>
+
+```{r 'Predictions',eval=F}
+# ----------------------- Sun Apr 01 08:14:15 2018 ------------------------#
+# Unfortunately, it appears that the predict functions all encounter errors, even when the training data itself is used.
+
+# ----------------------- Sat Mar 31 16:10:01 2018 ------------------------#
+# Test on all data
+em.pred <- predict(em.2017.svmRad$finalModel,newdata = em17.tr[,names(em.test) != "Deductible"], type="response") 
+# Error: "Error in .local(object", "...) : test vector does not match model !"
+#TODO(Troubleeshoot 2018-03-31 2300)
+ identical(sapply(em17.tr,levels),sapply(em.test,levels))
+# ----------------------- Sun Apr 01 06:36:05 2018 ------------------------#
+# The same error when the training data itself is used. There must be a problem in the code. It appears that there is no remedy for this issue. Skipping the ksvm model
+em.pred <- predict(em.2017.nB$finalModel,newdata=em17.tr[,names(em.test) != "Deductible"])
+# ----------------------- Sun Apr 01 06:47:57 2018 ------------------------#
+# Also doesnt work... trying LogitBoost
+library(caTools)
+em.pred <- predict(em.2017.LB$finalModel,xtest = model.frame(Deductible ~ Date + Amount + Category + Subcategory + Payment.Method + 
+    Payee.Payer + Account + Tag,data=em17.tr))
+```
+
+<strong>To account for what may be errors/incompatibilities between the caret final models and the predict functions, we will manually construct the models based on the tuning parameters provided by the caret training.</strong>
+
+```{r 'ksvm, manual'}
+best.Tunes <- lapply(em.2017.mods,FUN=function(x){
+  purrr::pluck(x,list("bestTune"))
+})
+em.svm <- kernlab::ksvm(Deductible~.,data=em17.tr,kpar=list(sigma=best.Tunes[[1]]$sigma),C=best.Tunes[[1]]$C,kernel="rbfdot")
+library(kernlab)
+# This appears to work, to determine the accuracy, I'll have to manually check the data.
+em.test$Deductible <- predict(em.svm,newdata=em.test)
+# em.test <- edit(em.test) #Manually coding deductible categories
+caret::confusionMatrix(predict(em.svm,newdata=em.test),em.test$Deductible)
+```
+
+<p>An ~88% accuracy was achieved with the test data. A majority of incorrectly labelled deductions were accounted for an addition of a single recurring payment associated with a Category/Subcategory combination that was not associated with a deduction in the test data. As the dataset grows over the years, and enough categories are created such that they can remains static, the accuracy of the algorithm will likely improve.</p>
+```{r 'logitboost, manual'}
+library(caTools)
+em.LB <- caTools::LogitBoost(xlearn=em17.tr[,names(em.test) != "Deductible"],ylearn=em17.tr$Deductible,nIter = best.Tunes[[2]]$nIter)
+# Error in if (MinLS > vLS1) { : argument is of length zero
+detach("package:caTools")
+```
+```{r 'naive bayes,manual'}
+library(klaR)
+best.Tunes[[3]]
+em.nB <- klaR::NaiveBayes(Deductible ~ ., data=em17.tr, usekernel=T, fL=0, kernel="gaussian",adjust=.01)
+caret::confusionMatrix(predict(em.nB,newdata = em.test,type="response")$class,em.test$Deductible)
+```
+
+<p>It appears that the Naive Bayes model is not so well-suited for predicting the deductibles at least with this set of tuning parameters. Perhaps this can improve with the Laplace correction?</p>
+```{r 'nb,laplace tuning'}
+em.nB <- klaR::NaiveBayes(Deductible ~ ., data=em17.tr, usekernel=T, fL=1, kernel="gaussian",adjust=.01)
+caret::confusionMatrix(predict(em.nB,newdata = em.test,type="response")$class,em.test$Deductible)
+```
+<p>LaPlace correction does not improve the model. Does another kernel?</p>
+
+```{r 'nb,kernel tuning'}
+em.nB <- lapply(c("gaussian", "epanechnikov", "rectangular",
+                   "triangular", "biweight",
+                   "cosine", "optcosine"),function(k){em.nB <- klaR::NaiveBayes(Deductible ~ ., data=em17.tr, usekernel=T, fL=1, kernel=k,adjust=.01)})
+lapply(em.nB,function(m){caret::confusionMatrix(predict(m,newdata = em.test,type="response")$class,em.test$Deductible)})
+```
+<p>Changing the kernel for the density calculation of numeric values does not improve the accuracy. This could be due to the fact that only two variables are numeric.</p>
+
+<strong>All predicted deductibles will need to be manually checked for accuracy. It may be useful for this process to have the rules from years previous to reference. A decision tree can provide this rule reference.</strong>
+
+```{r 'Decision Tree'}
+library(doParallel)
+# make a cluster with all possible threads (not cores)
+cl <- makeCluster(detectCores()-1)
+# register the number of parallel workers (here all CPUs)
+registerDoParallel(cl)
+getDoParWorkers()
+em.dt <- caret::train(Deductible ~ . , data=em17.tr, method="C5.0", na.action="na.pass", metric="Accuracy",tuneLength=10,trCtrl=em2017.train)
+stopCluster(cl)
+registerDoSEQ()
+detach("package:doParallel")
+library(C50)
+caret::confusionMatrix(predict(em.dt,newdata = em.test,type="raw"),em.test$Deductible)
+```
+
+<p>It appears the C5.0 algorithm performs exceptionally well with this categorized financial data at determining deduction, with an accuracy of ~98%. This will be the algorithm of choice for processing future expense data to determine deductions. </p>
+
+```{r 'detach packages'}
+# cl <- makeCluster(detectCores()-1)
+# # register the number of parallel workers (here all CPUs)
+# registerDoParallel(cl)
+# getDoParWorkers()
+# em.2017.pred <- lapply(em.2017.mods, function(x){
+ req.packages <- c("doParallel","klaR","kernlab","caTools","C50","parallel","iterators","MASS","foreach")
+# for (q in seq_along(req.packages)) {
+#   suppressPackageStartupMessages(library(req.packages[q],character.only = T))
+# }
+# em.pred <- predict(x$finalModel,newdata = model.frame(Deductible ~ ., em.test), type="response") 
+l <- sapply(search() %in% lazyeval::uq(paste0("package:",req.packages)) %>% which,FUN=function(x)detach(pos=x))
+while(length(l)>0){
+l <- sapply(search() %in% lazyeval::uq(paste0("package:",req.packages)) %>% which,FUN=function(x)detach(pos=x))}
+# })
+# stopCluster(cl)
+# registerDoSEQ()
+```
+
+
+```{r 'Deductible Categories for Manual Coding'}
+cat.ded <- em$Category %>% unique %>% .[c(2,3,6:11,13,16)] # Get a list of categories that often have deductible expenses
+em.ded <- em %>% .[.$Category %in% cat.ded,] %>% select(one_of(em.cols)) # Subset Expense manager data by relevant categories and columns
+deductions <- vector("list",length(cat.ded))
+names(deductions) <- cat.ded # Create a list object to store deductions
+deductions$Automobile$Fuel <- em %>% group_by(Category,Subcategory) %>% filter(Subcategory %in% "Fuel") %>% summarise(Fuelcost=sum(Amount)) %>% .$Fuelcost
+deductions$Automobile$Maintenance <- em %>% group_by(Category,Subcategory) %>% filter(Category == "," & !Subcategory %in% "Fuel") %>% summarise(Maintcost=sum(Amount)) %>% .$Maintcost %>% sum
+)
+```
+```{r}
+# Select those items that are tax deductible
+em.ded$Deductible[is.na(em.ded$Deductible)] %<>% assign(F)
+em.ded$Deductible[em.ded$Deductible=="T"] %<>% assign(T)
+em.ded$Deductible %<>% as.logical()
+em.ded.ttls <- em.ded[em.ded$Deductible == T,] %>% group_by(Category,Subcategory,`Payee/Payer`) %>% summarise(Totals=sum(Amount))
+em.ded.ttls %<>% edit()
+```
+
+
+
+
+
+## Deduction for Home Office
+
+### Space Deduction from Rent
+```{r 'Rent Deduction'}
+DeductibleExpenses <- vector()
+Rent <- c(rep(600,7),rep(750,5))
+names(Rent) <- month.abb
+Gorham <- 29*11.5/2+10*5/2+9*5/2+13.5*10.5 # SQ ft calculation
+pHomeOffice <- 36/Gorham # Sq ft of office/ total = Percent used for office space
+DeductibleExpenses['Rent'] <- -sum(.12*Rent[1:7] + pHomeOffice*Rent[8:12])
+```
+
+### Office Utilities
+```{r 'Office Utils Deductions'}
+# Internet
+DeductibleExpenses['Internet'] <- em %>% filter(Category=="Business" & Subcategory=="Utilities" & `Payee/Payer` == "Verizon") %>% summarize(Total=sum(Amount)) %>% .$Total * pHomeOffice
+DeductibleExpenses['Compost'] <- em %>% filter(Category=="Business" & `Payee/Payer` == "Bootstrap Compost") %>% summarize(Total=sum(Amount)) %>% .$Total* pHomeOffice
+```
+
+### Business Utilities
+
+## Educational Expenses
+<a href="https://smartasset.com/taxes/a-guide-to-filling-out-form-8917" target="_blank">Form 8917 Educational Deductions vs 8863 Education Tax Credits </a>
+<a href="https://www.irs.gov/instructions/i8863" target="_blank">8863 Instructions </a>
