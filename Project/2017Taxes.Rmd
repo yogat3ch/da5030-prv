@@ -28,7 +28,7 @@ for (q in seq_along(req.packages)) {
 }
 ```
 
-# Introduction
+# Introduction & CRISP-DM Overview
 <div class="q">Describe the data set, what you plan to do in each phase of CRISP-DM, and the models you expect to build, evaluate, and apply.</div>
 ## Business Understanding
 ### Background
@@ -129,6 +129,7 @@ inc2017 <- em2017 %>% filter(Category=="Income") %>% group_by(`Payee/Payer`,Acco
 Income <- c(Veda=1083.16,Nico=984.69,HeWo=2221.48)
 sum(Income) #Total Self-employment income
 ```
+
 
 # Expense Deductions
 ## Business Expenses
@@ -378,3 +379,46 @@ DeductibleExpenses['Compost'] <- em %>% filter(Category=="Business" & `Payee/Pay
 ## Educational Expenses
 <a href="https://smartasset.com/taxes/a-guide-to-filling-out-form-8917" target="_blank">Form 8917 Educational Deductions vs 8863 Education Tax Credits </a>
 <a href="https://www.irs.gov/instructions/i8863" target="_blank">8863 Instructions </a>
+
+# Data Visualization
+## Visualizing Net Gain/Loss
+```{r 'Timeseries Tx Data prep'}
+names(usaa.visa)
+names(usaa)
+Tx <- rbind(cbind(usaa,Acct=rep("C",nrow(usaa))),cbind(usaa.visa,Acct=rep("V",nrow(usaa.visa)))) # Add a factor to label the source of each txn, V for visa, C for checking.
+Tx$Date %<>% lubridate::mdy() 
+Tx$Category %<>% as.factor()
+Tx$Amt %<>% as.numeric 
+tx.fac <- function(x){sapply(x,function(x){if(x == 1000 | x == 1500){x <- "Support";return(x)}else if(x<0){x <- "Expense";return(x)}else if(x > 0){x <- "Income";return(x)}
+})}
+Tx <- Tx %>% dplyr::mutate(G.L=tx.fac(Amt)) # Add a factor to label whether the txn is a gain or a loss, or support income G.L
+Tx <- Tx %>% filter(Category != "Credit Card Payments") # Filter out all values that deduct from checking account to pay visa balance as they are already accounted for in visa data
+sapply(Tx,class)
+# ----------------------- Sun Apr 01 17:16:42 2018 ------------------------#
+# Attribute appropriate classes to features
+
+Tx$G.L %<>% as.factor 
+```
+```{r 'Vis Timeseries',fig.width=8,fig.height=1/3*11}
+limits <- c(-1800,1600)
+bstn.exp <- Tx %>% filter(Date > lubridate::mdy("08-03-2017") & Amt < 0 & Amt > -1000)
+bstn.lm <- lm(Amt~Date,data=bstn.exp)
+ts.colors <- RColorBrewer::brewer.pal(n=11,name="RdYlGn")
+names(ts.colors)[c(1,10,11)] <- c("Expense","Support","Income")
+ggplot(data = Tx,mapping=aes(x=Date,y=Amt))+
+geom_smooth(method = "lm", formula = Amt ~ Date, data=bstn.exp, colour = ts.colors[11]) +
+geom_line(mapping = aes(color=G.L),alpha=1)+
+  geom_vline(xintercept = lubridate::mdy("08-03-2017"), color=ts.colors[2])+
+  geom_text(aes(x=lubridate::mdy("08-03-2017"), label="Relocation", y=1000), colour=ts.colors[2], angle=90, vjust = 1.2, size=4)+
+  geom_vline(xintercept = lubridate::ymd("2017-09-15"), color=ts.colors[2])+
+  geom_text(aes(x=lubridate::ymd("2017-09-15"), label="Tuition", y=1000), colour=ts.colors[2], angle=90, vjust = 1.2, size = 4)+
+scale_y_continuous(name="Amount",breaks=seq(limits[1], limits[2], by = 200),minor_breaks = seq(limits[1], limits[2], by = 100), limits=limits)+
+  scale_x_date(date_breaks = "1 month",date_minor_breaks = "1 week", date_labels = "%m")+
+scale_color_manual(values=ts.colors[c(1,10,11)],name="Gain/Loss")+
+  scale_alpha(range=c(1,1))+
+  theme_minimal()+
+  theme(legend.position = "bottom")
+
+
+```
+

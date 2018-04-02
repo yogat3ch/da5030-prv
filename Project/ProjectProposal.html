@@ -1,0 +1,114 @@
+<p> A short background:</p>
+<p>I've been working as a freelance web &amp; graphic designer, event coordinator, yoga teacher &amp; studio manager, and administrative consultant for the past few years. I've was marginally profitable in this sole proprietorship in 2016, necessitating a more extensive amount of time and attention to detail spent in filing taxes.  Taxes are again coming due, and two projects must be accomplished for both of my classes concurrently. To avert an extremely stressful convergence of deadlines I've decided to use my financial exploration for tax reporting purposes as the dataset for the projects that need to be accomplished. </p>
+<p>In the CRISP-DM overview below I outline the primary outcomes I hope to achieve with the project. I was legitimately worried that the data would not be complete or usable enough to do anything noteable with. This recently happened to me on a project, forcing me to pivot to another topic and dataset part way through, and start over from the beginning. This was especially time-consuming as one might imagine. In order to avoid this, I opted to go straight for the primary criteria for the project and build 3 models, in this case, to detect and classify deductibles in my expense data. Having done so and arrived at a deployment worthy model, I decided to stick with this as the project idea. </p>
+<p>The CRISP-DM overview below outlines the overall goals for the project, with a narrative that focuses primarily on the process that has already been undertaken to ensure the data is suitable to fulfill the project criteria, as noted above.  The full outline will be provided with the completion of the project.</p>
+<p>The source of the black checklist is linked below. My comments are in <span style="color: green">green</span>.</p>
+<p><a href="https://itsalocke.com/blog/crisp-dm-and-why-you-should-know-about-it/">Checklist source</a></p>
+<ul>
+<li>Business Understanding
+<ul>
+<li>Understanding the business goal:
+<p style="color: green;">My objectives with this expense data exploration are to:</p>
+<ul style="color: green;">
+<li>Find a means of making the tax filing process easier by leveraging machine learning techniques learned in DA 5030 to determine deductions based on a training set of manually discovered deductions.</li>
+<li>Create projections for future years based on data from previous years</li>
+<li>Discern differences in expenses with the relocation for school</li>
+<li>Find clusters of expense records that can serve as indicators where improvements can be made to budgeting/spending.</li>
+<li>(If time allows) to develop a tool for better selecting well-performing stock options to bolster the self-managed stock portfolio that is currently paying for this course education.</li>
+</ul>
+</li>
+<li>Situation assessment:
+<p style="color: green;">I track all expense data manually in an application. It's not perfect, but it provides enough transaction detail such that this exploration will be possible.</p>
+</li>
+<li>Translating the business goal in a data mining objective
+<p style="color: green;">Classification techniques used for determining deductions are:</p>
+<ul style="color: green;">
+<li>Radial SVM</li>
+<li>Naive Bayes</li>
+<li>Boosted Logistic Regression</li>
+<li>C5.0 Decision Tree</li>
+</ul>
+<p style="color: green;">Forecasting techniques will be developing an additive linear regression model likely using a combination of:</p>
+<ul style="color: green;">
+<li>Decomposition in Simple Moving Average (trend) &amp; Exponential Moving average (Volatility)</li>
+<li>Linear Regression with Smoothing Splines for detecting trend shifts (related to relocation)</li>
+<li>Holts-Winters for seasonal trend projection</li>
+</ul>
+</li>
+<li>Development of a project plan
+<p style="color: green;">I use Trello &amp; GitKracken to track project progress. In the document, I will use timestamped TODO() markers to formulate plans for coding each section and timestamped comments to track progress and changes.</p>
+</li>
+</ul>
+</li>
+<li>Data understanding
+<ul>
+<li>Considering data requirements
+<p style="color: green;">The data needs to be well-labelled with enough features to discern the properties of each transaction in order to determine deductions. I developed a system in years previous for Categorizing deductons that will hopefully prove useful in allowing predictive models to automate the classification of deductions.</p>
+</li>
+<li>Initial data collection, exploration, and quality assessment.
+<p style="color: green;">I have received a 1099-Misc for all major contract clients to verify income. I have downloaded all transaction history from checking/credit accounts, and have exported all manually recorded transactions from the app that I use to track expenses.</p>
+</li>
+</ul>
+</li>
+<li>Data preparation
+<ul>
+<li>Selection of required data
+<p style="color: green;">The transaction history from the bank does not allow for the creation of additional categories for labelling specific transaction types, and the descriptions of the transactions themselves are cryptic and often difficult to interpret. Thus, I will be using only the manually tracked expenses because the data has more legible features with respect to labelling each transaction. Additionally, because each transaction was manually labelled, I am typically able to remember the transaction and fill missing data if necessary.</p>
+</li>
+<li>Data acquisition
+<p style="color: green;">Exporting from online banking platforms and from the app via csv was completed. Data was imported into R for exploration.</p>
+</li>
+<li>Data integration and formatting
+<p style="color: green;">Feature classes were manually constructed where incorrectly imported.</p>
+</li>
+<li>Data cleaning
+<p style="color: green;">Dates are formatted to lubridate dates. Missing data was filled using manual recollection of transactions. NA were imputed to a "None" factor to avoid errors in model building.</p>
+</li>
+<li>Data tranaformation and enrichment
+<p style="color: green;">To allow for seasonal analysis, lubridate provides a decimal_date function that computes the decimal of value of the progress through the year that the date represents. Subtracting the year from this decimal date allows for dates to be compared annually.</p>
+</li>
+</ul>
+</li>
+<li>Modeling
+<ul>
+<li>Selection of appropriate modeling technique
+<p style="color: green;">I initially selected Naive Bayes, Radial SVM, and LogitBoost (a boosted logistic regression algorithm). After a significant amount of time spent debugging, I was able to get Naive Bayes and Radial SVM working.</p>
+</li>
+<li>[…] Splitting of the dataset into training and testing subsets for evaluation purposes
+<p style="color: green;">caret's createDataPartition works especially well at partitioning data based on a percentage split according to factor levels in the response variable.</p>
+</li>
+<li>Development and examination of alternative modeling algorithms and parameter settings
+<p style="color: green;">I used caret train to find tuning parameters for each model type. The final model output from caret, while reporting comparable accuracy metrics for model comparison, was causing an error when attempting to be used for prediction.</p>
+</li>
+<li>Fine tuning of the model settings according to an initial assessment of the model’s performance
+<p style="color: green;">To solve the problem above I manually extracted the tuning parameters specified by the best performing models from the caret models, and implemented them to make the models manually with the respective packages. After achieving about ~75% accuracy with Naive Bayes, a fail with the LogitBoost, and 88% accuracy with the Radial SVM despite using various tuning parameters, I decided to use caret again to train a C5.0 decision tree. This model arrived at a 98% accuracy for predicting deductions in one run!</p>
+</li>
+</ul>
+</li>
+<li>Model evaluation
+<ul>
+<li>Evaluation of the model in the context of the business success criteria
+<p style="color: green;">The deduction classifier model will use accuracy as it's primary assessment criterion. The forecasting models will use RMSE as the primary comparator. Feature selection using AIC in a stepwise fashion may be used to narrow down features, though I think I've intuitively selected the minimal set of explanatory criteria already. </p>
+</li>
+<li>Model approval <p style="color: green;">The decision tree will be sufficient for detecting and classifying deductions for data from the expense manager app in future years. It is deployment ready. The final models from the other explanations will be reported here once developed.</p></li>
+</ul>
+</li>
+<li>Deployment
+<ul>
+<ul>
+<li>Create a report of findings
+<p style="color: green;">A video walkthrough of each segment of the 5 part analysis discussed in the Phase 1 of CRISP-DM will be created to report the findings. In addition, an RMarkdown website will be created to display the findings in a logical and readable fashion.</p>
+</li>
+</ul>
+</ul>
+<strong>To be continued!</strong>
+<ul>
+<li>Planning and development of the deployment procedure</li>
+<li>Deployment of the […] model</li>
+<li>Distribution of the model results and integration in the organisation’s operational […] system</li>
+<li>Development of a maintenance / update plan</li>
+<li>Review of the project</li>
+<li>Planning the next steps</li>
+</ul>
+</li>
+</ul>
