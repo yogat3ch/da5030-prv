@@ -1,0 +1,189 @@
+---
+title: "Holsenbeck_S_8"
+author: "Stephen Synchronicity"
+date: '`r format(Sys.time(), "%Y-%m-%d")`'
+always_allow_html: yes
+header-includes:
+   - \usepackage{dcolumn}
+output: 
+  html_document: 
+    self_contained: yes
+    css: C:\Users\Stephen\Documents\R\win-library\3.4\neuhwk\rmarkdown\templates\DA5030\resources\bootstrap.min.css
+    highlight: zenburn
+    keep_md: no
+    theme: spacelab
+    toc: no
+---
+```{r setup, include=FALSE}
+# Knitr Options
+knitr::opts_chunk$set(echo = TRUE, message=FALSE,warning=FALSE,cache=TRUE, fig.align='center', fig.height=5, fig.width=8, tidy=TRUE, tidy.opts=list(width.cutoff=80))
+library(knitr)
+knit_print.data.frame = function(x, ...) {
+    res = paste(c("", "", kable(x)), collapse = "\n")
+    asis_output(res)
+}
+options(scipen=12)
+# Attach dependencies
+rmarkdown::html_dependency_jquery()
+rmarkdown::html_dependency_bootstrap("spacelab")
+rmarkdown::html_dependency_jqueryui()
+# Make reproducible
+set.seed(1)
+# Load packages
+req.packages <- c("tidyverse","dplyr","htmltools","magrittr")
+for (q in seq_along(req.packages)) {
+  suppressPackageStartupMessages(library(req.packages[q],character.only = T))
+}
+```
+```{r 'Assignment',eval=F}
+# This code will extract the assignment HTML and print the output formatted for this Rmd document. Set Assignment html below
+# Use if assignment has blue font headers, and lists of questions
+library(rvest)
+library(xml2)
+htm <- xml2::read_html("https://da5030.weebly.com/assignment-8.html") 
+Q <- htm %>% rvest::html_nodes(xpath="//font[contains(@color,'#24678d')]/ancestor::div[1]") %>% rvest::html_children()
+lbls <- sapply(Q,function(x){if(stringr::str_detect(x,"Problem")){return("PrHd")}else if(stringr::str_detect(x,"Submission Details")){return("Stop")}else{html_children(x) %>% html_name}},simplify=T)
+Qs <- vector("list",sum(stringr::str_detect(Q,"Problem")))
+
+ns <- Q %>% html_text() %>% stringr::str_extract("(?<=Problem\\s)\\d") %>% as.numeric
+ns.ind <- which(!is.na(ns))
+for(i in seq_along(Q)){
+  if(any(i %in% ns.ind)){n <- ns[i]} #Storing following info in appropriate list item for question
+ if(lbls[i] == "PrHd"){
+  
+  Qs[[n]][['h1']] <- paste("#",rvest::html_text(Q[i]),"\n")
+  print( Qs[[n]][['h1']])
+ next}else if(lbls[i] == "Stop"){break}else if(length(rvest::html_attrs(Q[i]) %>% grepl("paragraph",.,ignore.case = T) & html_children(Q[i]) %>% html_attrs() %>% grepl("rgb\\(85",.,ignore.case = T)) > 0){
+    Qs[[n]][['q']] <- paste("<div class='q'>",html_text(Q[i]),"</div>\n```{r  '",n,"'}\n```\n<p class='a'></p>\n\n",sep="")
+ }
+  
+if(lbls[i] == "ol"){
+   subQs <- html_node(htm,xpath=xml_path(Q[i])) %>% html_node(css="ol") %>% html_nodes(css="li") %>% html_text
+   for(l in seq_along(subQs)){
+    subQs[l] <- paste("<div class='q'>",subQs[l],"</div>\n```{r  '",n,letters[l],"'}\n```\n<p class='a'></p>\n\n",sep="")
+   }
+  Qs[[n]]$q <- vector()
+  Qs[[n]]$q <- subQs
+}
+  
+}
+Qs <- lapply(Qs,function(x)x[order(names(x))])
+# grep(pattern=substr(html_text(n),1,20),x=xml_parent(n),ignore.case = T)
+# Qtext <- xml2::read_html("https://da5030.weebly.com/assignment-7.html") %>% rvest::html_nodes(xpath="//font[contains(@color,'#24678d')]/ancestor::div[1]/following-sibling::div[contains(@class,'paragraph')][1]")
+# Q.form <- vector("list",length(Q))
+# for (i in seq_along(Q)) {
+#  Q.form[[i]] <- list(title=NA,Qs=NA)
+#   Q.form[[i]][["title"]] <- Q[i] %>% rvest::html_node(css="font") %>% rvest::html_text() %>% paste("# ",.,"\n",sep="") 
+#    if(length(Qtext)>0){
+#     li <- xml2::xml_contents(Qtext[[i]]) %>% xml2::xml_children() %>% rvest::html_text()
+#     for (l in seq_along(li)) {
+#     Q.form[[i]][['Qs']][l] <- paste("## ",i,letters[l],"\n<div class='q'>",li[l],"\n</div>\n```{r '",i,letters[l],"'}\n```\n<p class='a'>\n</p>",sep="")
+#     }
+#    }else {
+#      
+#    }
+# }
+
+rapply(Qs,cat,sep="\n")
+sapply(search() %in% c("package:rvest","package:xml2") %>% which(),FUN=function(x)detach(pos=x))
+```
+
+# Problem 1 (50 Points) 
+ <div class='q'>Build an R Notebook of the social networking service example in the textbook on pages 296 to 310. Show each step and add appropriate documentation.</div>
+```{r  '1'}
+# ----------------------- Tue Apr 03 10:04:13 2018 ------------------------#
+# Load Date
+sns <- read.csv("snsdata.csv")
+str(sns)
+table(sns$gender, useNA = "always") %T>% print %>% prop.table
+# About ~9% have missing values. These might need to be imputed - likely using k-nn.
+findna <- function(df){
+nalist <- sapply(sns,function(x){if(any(is.na(x)) & any(class(x) %in% c("factor","character"))){table(x, useNA = "always") -> natable;natable %>% prop.table -> naprop; return(list(Freq=natable,Prop=naprop)) }else if(any(is.na(x)) & any(class(x) %in% c("numeric","integer"))){
+  summary(x)
+}
+})
+nalist[sapply(nalist, is.null)] <- NULL
+return(nalist)
+} 
+# ----------------------- Tue Apr 03 10:20:59 2018 ------------------------#
+# A Custom solution to find & report NA's in dataframes since it's such a common activity
+findna(sns)
+# It also appears that some individuals decided to use arbitrary ages. To account for this, these extreme values will need to be recoded as NA
+sns$age <- ifelse(sns$age >= 13 & sns$age < 20,
+                     sns$age, NA)
+# The factor levels can be recoded to dummy variables to account for a third class of NA. However, instead of using non-descript numbers that have to be remembered, we can just label the NA with another factor level. These will then suffice as dummy coded variables, but with values that are easier to remember.
+sns$gender %<>% as.character
+sns$gender[is.na(sns$gender)] <- "U"
+sns$gender %<>% as.factor
+#Age by cohort using aggregate
+aggregate(data = sns, age ~ gradyear, mean, na.rm = TRUE)
+ave(sns$age, sns$gradyear,
+                 FUN = function(x) mean(x, na.rm = TRUE)) %>% table
+sns$gradyear %>% table
+# It looks like this method would have assigned the mean for each factor in the index, in this case, the mean age for each gradyear. Imputing data using mean or median tends to make data more normalized and have a skew towards central tendency. A simpler and more accurage method of imputing these values is with knn.
+# ----------------------- Tue Apr 03 10:43:36 2018 ------------------------#
+# Impute Numeric using k-nn regression (usually more accurate than using mean/median)
+knn5 <- caret::knnreg(age ~ ., data=sns, subset = !is.na(sns$age), k=5)
+age.pred <- predict(knn5,newdata = sns[is.na(sns$age),])
+sns$age[is.na(sns$age)] <- age.pred
+sns$age %>% summary
+# The results are comparable to using means as in the example
+# ----------------------- Tue Apr 03 14:17:06 2018 ------------------------#
+# Using the interests data for k-means wll require normalizing it using scale so as not to introduce mis-clustering when values are larger
+sns.z <- as.data.frame(lapply(sns[5:40],scale))
+# ----------------------- Tue Apr 03 14:20:19 2018 ------------------------#
+# Seed is set to 1 in every assignment. The simple implementation with 5 clusters is below.
+sns.cl <- kmeans(sns.z, centers=5, nstart=10, iter.max = 15)
+sns.cl$size
+sns.cl.vars <- lapply(as.data.frame(sns.cl$centers),which.max) %>% unlist
+sns.cl.desc <- sapply(unique(sns.cl.vars[order(sns.cl.vars)]),function(x){paste0(names(sns.cl.vars[sns.cl.vars == x]))})
+names(sns.cl.desc) <- unique(sns.cl.vars[order(sns.cl.vars)])
+sns.cl.desc
+# Noting that one cluster is huge, Lantz surmises that the cause is accounts with no interests listed. Let's see if this is indeed the case
+sns[5:40] %>% rowSums(na.rm=T) %>% subset(subset = (. == 0)) %>% length
+# It appears that onky 2473 have no interests listed (or at least no interests within the keywords in the data set). Thus, there must be another explanation for cluster 2 with roughly ~74% of the observations.
+# ----------------------- Tue Apr 03 15:03:44 2018 ------------------------#
+# LAbel the observations in the original data with the cluster assignments
+sns$cluster <- sns.cl$cluster
+# Look at the age per cluster
+aggregate(data = sns, age ~ cluster, mean)
+# Look at gender per cluster
+table(sns$gender,sns$cluster) %T>% print %>% prop.table
+sns.cl.desc
+# The ratios of f/m make some sense given the interests associated with each cluster.
+# ----------------------- Tue Apr 03 15:27:10 2018 ------------------------#
+# The number of friends by cluster
+aggregate(data = sns, friends ~ cluster, mean)
+
+```
+<p class='a'>The clustering process provided in the book yielded some interesting insights into the data, but did not particularly delve into methods for selecting k in unsupervised learning situations, nor accessing the optimal clusters from a set of clusterings from a repeated cross-validation. I know that ClusterR and clusterCrit provide a variety of useful tools for automating cluster selection, setting well-educated start points for the clustering algorithm, and then assessing within-cluster and between-cluster metrics using various criteria. I hope to explore these capabilities further in the personal project.</p>
+
+# Problem 2 (50 Points) 
+
+<div class='q'>(10 Points) What are various ways to predict a binary response variable? Can you compare two of them and tell me when one would be more appropriate? What’s the difference between these? (SVM, Logistic Regression, Naive Bayes, Decision Tree, etc.)</div>
+
+<p class='a'>Each of these models can be useful for predicting a binary response variable. From the few trials I've done, I've found that Boosted Logistic Regression and Decision Trees appear to perform exceptionally well with a binary response variable. 
+Boosting creates a sequence of weak learner models, improving on the predictive accuracy with each iteration, by giving greater weights to inaccurate predictions and giving accurate predictions lesser weights, which results in the algorithm starting with the variables associated with the inaccurate predictions in successive loops to improve the accuracy on those previously inaccurate predictions. A convex cost attribution function is applied to each successive model such that gradient descent can be used to increase the generalizability and overall accuracy of each successive model. The final ensemble model produces far greater accuracy than any previous model.</p>
+<p class='a'>Boosting has been applied to logistic regression, whereby data is fitted to a generalized additive logistic (binomial/sigmoid curve) linear model, and then the boosting method is applied. Logistic regression outputs a raw probability representing a value along the y-axis of the sigmoid curve, with a mean cutoff point dileneating a binary class prediction set at 0 (when the span of values is -1 : +1) or at .5 (when the span of values is 0-1). </p>
+<p class='a'>Boosting can also applied to Decision trees whereby a decision tree parses the data using axis-parallel splits to optimize information gain on each variable. Similar to logistic regression, the variables associated with inaccurate predictions are given higher weights, such that in successive iterations the algorithm begins with those variables to better optimize the predictive accuracy derived from the splits on the variable. Key differences are that decision tree output provides more legible output to show how the data was split to best classify the response variable (though this decision output can become quite extensive with boosted models and with complex data sets), whereas logistic regression is only going to provide the coefficient on each variable (and in some implementations, this may not even be available). Due to axis-parallel splits used by decision trees, they might not be able to model highly complex datasets, especially when there are factors with numerous levels interacting. Logistic regression (and SVMs) could be better suited for these situations.</p>
+
+
+<div class='q'>(10 Points) Why might it be preferable to include fewer predictors over many?</div>
+<p class='a'>Models with fewer predictors often have greater explanatory potential and specificity. It would be difficult for a human to grapple with a reasonable explanation why a particular response variable is explained by 7+ predictors, and how each of these variables influences the response variable and why, especially if there are no logical associations between variable, or PCA yields no useful groupings of variables. In contrast, model with 3 predictive variables might be more easily explained, especially if the model must be communicated to or interpreted by decisions makers with more of a business background that a statistical one. </p>
+<p class='a'>When it comes to the explanatory value of a machine learning model, Occam's razor definitely applies.</p>
+
+
+<div class='q'>(10 Points) Given a database of all previous alumni donations to your university, how would you predict which recent alumni are most likely to donate?</div>
+<p class='a'>To leverage the teamwork of a fundraising department, a model that can be easily interpreted would be the most useful. In essence, it would be helpful to know not just which individuals in a dataset are most likely to donate (though this could be helpful) but it is likely going to be more helpful to know the characteristics of alumni who are likely to donate such that alumni who have not donated yet might be parsed as to their likelihood of donation as well as previous donors. For these reasons I would select a decision tree or a rule-based learner. The rules in the output could provide prioritized lists of donors to be distributed to each of team members.</p>
+<p>If I were managing such an inquiry, I would likely consult the database of previous donors and gather data such as timestamped donation history, donation amount, course of study, student org affiliations, years out of school, demographic characteristics, location, city of origin, birthdate, employment, attendance at alumni events, and marital/dependent status. The frequency derived from donation history is likely to be a good indicator of likelihood to donate. The response variable could be donation frequency or one model, and donation amount for another model. The overlap of influential variables in both models could serve as a reference for parsing alumni lists to determine likely donors. Recency of last donation (less proximal the better) could be a good indicator that they are ready to donate again and would take a higher priority in the list order. Lists of donors, ordered by priority can then be supplied to each team member based on the team member's congruity/connections with the donors they are intended to call (ie in the same student organization, course of study, home of origin etc). </p>
+
+
+<div class='q'>(10 Points) What is R-Squared? What are some other metrics that could be better than R-Squared and why?</div>
+<p class='a'>
+$$R^2 = 1 - frac{sum{(y-hat{y})}^2}{sum{(y-bar{y})}^2}$$
+R-squared is the "coefficient of determination": a measure of the amount of variance in the data that a model explains, which serves as a decent metric for model fit. The numerator is the sum of squared residuals and the denominator is the sum of squared residuals for a model where all predictors are equal to the mean, the fraction is subtracted from 1, and thus $R^2$ ranges from 0 to 1. The rule of thumb with $R^2$ is that it should have a value greater than .6 on test data (though this threshold varies depending on the subject matter of the data). Additional metrics for model fit are the Mean Squared Error (MSE) and the Root Mean Squared Error (RMSE) which gives a standard deviation of the residuals. A rule of thumb for evaluating a model based on RMSE is that it should be less that 10% of the range of the response variable. Akaike Information Criterion can be used to evaluate models in relation to one another, but it does not provide a standalone measure of model fit.</p>
+Sources consulted: <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4530125/" target="_blank">Alexander, D., Tropsha, A., & Winkler, D. (2015). Beware of R2: Simple, Unambiguous Assessment of the Prediction Accuracy of QSAR and QSPR Models. Journal Of Chemical Information And Modeling, 55(7), 1316-1322. doi:10.1021/acs.jcim.5b00206</a>
+<p>The area under the Receiver Operating Characteristic curve, a plot of the true positive rate against the false positive rate gives the Area Under Curve (AUC). This is another useful standalone measure of model accuracy that has applications in multiple fields, most notably in medicine.</p>
+
+<div class='q'>(10 Points) How can you determine which features are the most important in your model?</div>
+<p class='a'>When evaluating a model, it can be observed that certain variable's coefficient may have a much stronger statistical significance (in the case of linear models) than other variables. The significance of the variable's coefficient indicates the magnitude of it's impact on predicting the response variable. Variables with greater statistical significance (smaller p-values) will be more important to the model's accuracy, where variables that are statistically insignicant (very large p-values) can indicate that the variable has marginal to no impact, and could just be adding noise to the model. Stepwise selection can also be used to determine the information gain or loss assoicated with inclusion or exclusion of a particular variable. Stepwise selection methods weigh the relative information gain or loss associated with each variable and will eliminate variables that add little information to the model, or add variables back into the model if they later appear to be significant, with the new subset of predictor variables. If the model is a decision tree, it is often the variables that are split first (higher in the ruleset) that have the greater importance in the model. If the model is a neural net, the weights (if provided) can give a measure of feature importance. </p>
