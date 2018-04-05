@@ -1,0 +1,162 @@
+---
+title: "Holsenbeck_S_P3"
+author: "Stephen Synchronicity"
+date: '`r format(Sys.time(), "%Y-%m-%d")`'
+always_allow_html: yes
+header-includes:
+   - \usepackage{dcolumn}
+output: 
+  html_document: 
+    self_contained: yes
+    css: C:\Users\Stephen\Documents\R\win-library\3.4\neuhwk\rmarkdown\templates\DA5030\resources\bootstrap.min.css
+    highlight: zenburn
+    keep_md: no
+    theme: spacelab
+    toc: no
+---
+```{r setup, include=FALSE}
+# Knitr Options
+knitr::opts_chunk$set(echo = TRUE, message=FALSE,warning=FALSE,cache=TRUE, fig.align='center', fig.height=5, fig.width=8, tidy=TRUE, tidy.opts=list(width.cutoff=80))
+library(knitr)
+knit_print.data.frame = function(x, ...) {
+    res = paste(c("", "", kable(x)), collapse = "\n")
+    asis_output(res)
+}
+options(scipen=12)
+# Attach dependencies
+rmarkdown::html_dependency_jquery()
+rmarkdown::html_dependency_bootstrap("spacelab")
+rmarkdown::html_dependency_jqueryui()
+# Make reproducible
+set.seed(1)
+# Load packages
+req.packages <- c("tidyverse","dplyr","htmltools","magrittr")
+for (q in seq_along(req.packages)) {
+  suppressPackageStartupMessages(library(req.packages[q],character.only = T))
+}
+# ----------------------- Tue Apr 03 10:20:17 2018 ------------------------#
+# Custom Functions
+findna <- function(df){
+nalist <- sapply(sns,function(x){if(any(is.na(x)) & any(class(x) %in% c("factor","character"))){table(x, useNA = "always") -> natable;natable %>% prop.table -> naprop; return(list(Freq=natable,Prop=naprop)) }else if(any(is.na(x)) & any(class(x) %in% c("numeric","integer"))){
+  summary(x)
+}
+})
+nalist[sapply(nalist, is.null)] <- NULL
+return(nalist)
+  }
+```
+```{r 'Assignment',eval=F}
+# This code will extract the assignment HTML and print the output formatted for this Rmd document. Set Assignment html below
+# Use if assignment has blue font headers, and lists of questions
+library(rvest)
+library(xml2)
+#font[contains(@color,'#24678d')]/ancestor::div[1]
+htm <- xml2::read_html("https://da5030.weebly.com/practicum-3-f18.html") 
+Q <- htm %>% rvest::html_nodes(xpath="//div[contains(@class,'paragraph')]|//h2[contains(@class,'wsite-content-title')]") %>% rvest::html_children()
+tt <- data.frame(Tags=Q %>% html_name,Text=Q %>% html_text,stringsAsFactors = F)
+lbls <- apply(tt,1,function(x){
+  if(any(stringr::str_detect(x,"Problem"))){l <- "PrHd"}else if(any(stringr::str_detect(x,"Submission Details"))){l <- "Stop"}else if(any(stringr::str_detect(x,"ol"))){l <- "ol"}else if(any(stringr::str_detect(x,"ul"))){l <- "ul"}else {l <- NULL}
+  return(l)})
+lbls[sapply(lbls,is.null)] <- NULL
+Qs <- vector("list", sum(lbls %in% "PrHd"))
+for(i in seq_along(lbls)){
+  if(lbls[[i]] == "Stop"){break}  #Storing following info in appropriate list item for question
+ if(lbls[[i]] == "PrHd"){
+  n <- Q[[i]] %>% str_extract("(?<=Problem\\s)\\d") %>% as.numeric
+  h1 <- paste("#",rvest::html_text(Q[i]),"\n")
+  Qs[[n]] <- list(h1=h1,q=NA)
+ next}else if(length(rvest::html_attrs(Q[i]) %>% grepl("paragraph",.,ignore.case = T) & html_children(Q[i]) %>% html_attrs() %>% grepl("rgb\\(85",.,ignore.case = T)) > 0 & any(lbls[[i]] %in% c("ul","ol")) != T){
+    Qs[[n]][['q']] <- paste("<div class='q'>",html_text(Q[i]),"</div>\n```{r  '",n,"'}\n```\n<p class='a'></p>\n\n",sep="")
+ }else if(lbls[i] == "ol"|lbls[i] == "ul"){
+   subQs <- htm %>% html_node(xpath=xml_path(Q[i])) %>% html_nodes(css="li") %>% html_text
+   for(l in seq_along(subQs)){
+    subQs[l] <- paste("<div class='q'>",subQs[l],"</div>\n```{r  '",n,letters[l],"'}\n```\n<p class='a'></p>\n\n",sep="")
+   }
+  Qs[[n]]$q <- vector()
+  Qs[[n]]$q <- subQs
+}
+  
+}
+Qs <- lapply(Qs,function(x)x[order(names(x))])
+# grep(pattern=substr(html_text(n),1,20),x=xml_parent(n),ignore.case = T)
+# Qtext <- xml2::read_html("https://da5030.weebly.com/assignment-7.html") %>% rvest::html_nodes(xpath="//font[contains(@color,'#24678d')]/ancestor::div[1]/following-sibling::div[contains(@class,'paragraph')][1]")
+# Q.form <- vector("list",length(Q))
+# for (i in seq_along(Q)) {
+#  Q.form[[i]] <- list(title=NA,Qs=NA)
+#   Q.form[[i]][["title"]] <- Q[i] %>% rvest::html_node(css="font") %>% rvest::html_text() %>% paste("# ",.,"\n",sep="") 
+#    if(length(Qtext)>0){
+#     li <- xml2::xml_contents(Qtext[[i]]) %>% xml2::xml_children() %>% rvest::html_text()
+#     for (l in seq_along(li)) {
+#     Q.form[[i]][['Qs']][l] <- paste("## ",i,letters[l],"\n<div class='q'>",li[l],"\n</div>\n```{r '",i,letters[l],"'}\n```\n<p class='a'>\n</p>",sep="")
+#     }
+#    }else {
+#      
+#    }
+# }
+rapply(Qs,cat,sep="\n")
+while(length(sapply(search() %in% c("package:rvest","package:xml2") %>% which(),FUN=function(x)detach(pos=x)))>0){
+sapply(search() %in% c("package:rvest","package:xml2") %>% which(),FUN=function(x)detach(pos=x))}
+```
+
+# Problem 1 
+
+<div class='q'>(0 pts) Download the data set Bank Marketing Data Set. Note that the data file does not contain header names; you may wish to add those. The description of each column can be found in the data set explanation. Use the bank-full.csv data set but also download bank.csv and use that for testing and algorithm development.</div>
+```{r  '1a'}
+```
+<p class='a'></p>
+
+
+<div class='q'>(0 pts) Explore the data set as you see fit and that allows you to get a sense of the data and get comfortable with it. Is there distributional skew in any of the features? Is there a need to apply a transform? </div>
+```{r  '1b'}
+```
+<p class='a'></p>
+
+
+<div class='q'>(20 pts) Build a classification model using a support vector machine that predicts if a bank customer will open a term deposit account.</div>
+```{r  '1c'}
+```
+<p class='a'></p>
+
+
+<div class='q'>(20 pts) Build another classification model using a neural network that also predicts if a bank customer will open a term deposit account.</div>
+```{r  '1d'}
+```
+<p class='a'></p>
+
+
+<div class='q'>(20 pts) Compare the accuracy of the two models based on absolute accuracy and AUC.</div>
+```{r  '1e'}
+```
+<p class='a'></p>
+
+
+# Problem 2 
+
+<div class='q'>(0 pts) Download the data set Plant Disease Data Set. Note that the data file does not contain header names; you may wish to add those. The description of each column can be found in the data set explanation. This assignment must be completed within an R Markdown Notebook.</div>
+```{r  '2a'}
+```
+<p class='a'></p>
+
+
+<div class='q'>(0 pts) Explore the data set as you see fit and that allows you to get a sense of the data and get comfortable with it. Is there distributional skew in any of the features? Is there a need to apply a transform? </div>
+```{r  '2b'}
+```
+<p class='a'></p>
+
+
+<div class='q'>(40 pts) Use association rules to segment the data similar to what was done in Hämäläinen, W., & Nykänen, M. (2008, December). Efficient discovery of statistically significant association rules. In Data Mining, 2008. ICDM'08. Eighth IEEE International Conference on (pp. 203-212). IEEE.</div>
+```{r  '2c'}
+```
+<p class='a'></p>
+
+
+<div class='q'>(+30 pts) Are there clusters in the data? Can plants be segmented into groups? Build a k-means clustering model to investigate. </div>
+```{r  '2d'}
+```
+<p class='a'></p>
+
+
+<div class='q'>(+10 pts) Visualize the clusters.</div>
+```{r  '2e'}
+```
+<p class='a'></p>
